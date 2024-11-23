@@ -4,13 +4,13 @@ use rmp_serde::{Deserializer, Serializer};
 use super::{ Keyed, Versioned, SaveError, LoadError, DeleteError };
 use crate::model::data_types;
 
-pub struct InMemoryEventPersister {
+pub struct FileSystemEventPersister {
 }
 
-pub struct InMemoryStatePersister {
+pub struct FileSystemStatePersister {
 }
 
-impl super::EventPersister for InMemoryEventPersister {
+impl super::EventPersister for FileSystemEventPersister {
     fn log<T>(self: &Self, event: &T, timestamp: &data_types::Timestamp) -> Result<(), ()> 
         where T: Keyed + Serialize {
         let type_name = event.type_name();
@@ -25,7 +25,7 @@ impl super::EventPersister for InMemoryEventPersister {
     }
 }
 
-impl super::StatePersister for InMemoryStatePersister {
+impl super::StatePersister for FileSystemStatePersister {
     fn save<T>(self: &Self, entity: &T) -> Result<(), SaveError>
         where T: Versioned + Keyed + Serialize {
             let type_name = entity.type_name();

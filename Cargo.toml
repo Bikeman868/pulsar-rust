@@ -1,0 +1,17 @@
+[workspace]
+
+members = [
+    "broker",
+    "client",
+    "storage",
+    "integration_tests",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Martin Halliday <https://github.com/bikeman868>"]
+
+[workspace.dependencies]
+serde = { version = "*", features = ["derive"] }
+rmp-serde = { version = "*" }

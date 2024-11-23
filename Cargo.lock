@@ -39,7 +39,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "pulsar-rust"
+name = "pulsar-rust-broker"
+version = "0.1.0"
+dependencies = [
+ "rmp-serde",
+ "serde",
+]
+
+[[package]]
+name = "pulsar-rust-client"
+version = "0.1.0"
+dependencies = [
+ "rmp-serde",
+ "serde",
+]
+
+[[package]]
+name = "pulsar-rust-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "rmp-serde",
+ "serde",
+]
+
+[[package]]
+name = "pulsar-rust-storage"
 version = "0.1.0"
 dependencies = [
  "rmp-serde",

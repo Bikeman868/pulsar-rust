@@ -1,5 +1,5 @@
 [package]
-name = "pulsar-rust-broker"
+name = "pulsar-rust-integration-tests"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
