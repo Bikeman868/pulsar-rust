@@ -1,0 +1,3 @@
+debug = false
+persist-events = "file-system"
+persist-state = "file-system"

@@ -1,0 +1,3 @@
+debug = false
+persist-events = "in-memory"
+persist-state = "in-memory"

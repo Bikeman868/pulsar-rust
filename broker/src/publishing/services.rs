@@ -1,3 +1,1 @@
-pub struct MessageIdGenerator {
-
-}
+pub struct MessageIdGenerator {}

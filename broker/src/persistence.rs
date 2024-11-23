@@ -1,32 +1,60 @@
-mod in_memory;
+pub mod entities;
+pub mod events;
 mod file_system;
+mod in_memory;
 
-use serde::{Serialize, Deserialize};
+use entities::EntityPersister;
+use events::EventPersister;
+
 use crate::model::data_types;
 
-pub fn build_event_persister() -> impl EventPersister { 
-    // TODO: Examine the config and choose which persister to build
-    in_memory::InMemoryEventPersister { }
+pub enum PersistenceScheme {
+    InMemory,
+    FileSystem,
 }
 
-pub fn build_state_persister() -> impl StatePersister { 
-    // TODO: Examine the config and choose which persister to build
-    in_memory::InMemoryStatePersister { }
+impl PersistenceScheme {
+    const IN_MEMORY: &str = "in-memory";
+    const FILE_SYSTEM: &str = "file-system";
+
+    pub fn as_string(self: &Self) -> &'static str {
+        match self {
+            PersistenceScheme::InMemory => PersistenceScheme::IN_MEMORY,
+            PersistenceScheme::FileSystem => PersistenceScheme::FILE_SYSTEM,
+        }
+    }
+
+    pub fn from_string(value: &str) -> PersistenceScheme {
+        match value {
+            PersistenceScheme::IN_MEMORY => PersistenceScheme::InMemory,
+            PersistenceScheme::FILE_SYSTEM => PersistenceScheme::FileSystem,
+            _ => panic!("Unknown persistence scheme {value}"),
+        }
+    }
 }
 
-pub trait EventPersister {
-    fn log<T>(self: &Self, event: &T, timestamp: &data_types::Timestamp) -> Result<(), ()> where T: Keyed + Serialize;
+pub fn build_event_persister(scheme: PersistenceScheme) -> EventPersister {
+    match scheme {
+        PersistenceScheme::InMemory => {
+            EventPersister::InMmeory(in_memory::events::EventPersister::new())
+        }
+
+        PersistenceScheme::FileSystem => {
+            EventPersister::FileSystem(file_system::events::EventPersister::new())
+        }
+    }
 }
 
-pub trait StatePersister {
-    fn save<T>(self: &Self, entity: &T) -> Result<(), SaveError>
-        where T: Versioned + Keyed + Serialize;
-    
-    fn load<'a, T>(self: &Self, entity: & 'a mut T) -> Result<(), LoadError>
-        where T: Keyed + Deserialize<'a>;
+pub fn build_entity_persister(scheme: PersistenceScheme) -> EntityPersister {
+    match scheme {
+        PersistenceScheme::InMemory => {
+            EntityPersister::InMemory(in_memory::entities::EntityPersister::new())
+        }
 
-    fn delete<T>(self: &Self, entity: &T) -> Result<(), DeleteError>
-        where T: Keyed;
+        PersistenceScheme::FileSystem => {
+            EntityPersister::FileSystem(file_system::entities::EntityPersister::new())
+        }
+    }
 }
 
 pub trait Versioned {
@@ -35,24 +63,6 @@ pub trait Versioned {
 }
 
 pub trait Keyed {
-    fn type_name(self: &Self) -> &'static str;
+    fn type_name() -> &'static str;
     fn key(self: &Self) -> String;
-}
-
-#[derive(Debug)]
-pub enum SaveError {
-    Error,
-    VersionMissmatch,
-}
-
-#[derive(Debug)]
-pub enum LoadError {
-    Error,
-    NotFound,
-}
-
-#[derive(Debug)]
-pub enum DeleteError {
-    Error,
-    NotFound,
 }

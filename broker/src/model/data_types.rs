@@ -1,7 +1,7 @@
 pub type PartitionId = u16;
 pub type NodeId = u16;
 
-pub type Timestamp = u128;
+pub type Timestamp = u64;
 pub type VersionNumber = u32;
 
 pub type TopicId = u32;
