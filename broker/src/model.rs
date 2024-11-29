@@ -1,7 +1,6 @@
 pub mod data_types;
-pub mod database_entities;
-pub mod events;
 
+use data_types::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -14,7 +13,7 @@ pub struct MessageRef {
 }
 
 impl MessageRef {
-    fn to_key(self: &Self) -> String {
+    pub fn to_key(self: &Self) -> String {
         self.topic_id.to_string()
             + ":"
             + &self.partition_id.to_string()
@@ -29,6 +28,24 @@ impl MessageRef {
 pub struct Message {
     pub message_ref: MessageRef,
     pub key: String,
-    pub published: data_types::Timestamp,
+    pub published: Timestamp,
     pub attributes: HashMap<String, String>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Cluster {}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Node {}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Topic {}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Partition {}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Catalog {}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Subscription {}
