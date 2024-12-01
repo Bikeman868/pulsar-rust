@@ -10,7 +10,7 @@ use serde::Serialize;
 use crate::{
     model::data_types::Timestamp,
     persistence::{
-        event_logger::{EventQueryOptions, LogEntry, LogResult},
+        event_logger::{EventQueryOptions, LogDeleteResult, LogEntry, LogResult},
         Keyed,
     },
 };
@@ -63,10 +63,19 @@ impl EventLogger {
     where
         'a: 'b,
     {
-        let iter = LogEntryIterator::new(&self.entries, options, move |entry| {
-            entry.timestamp >= start && entry.timestamp < end
-        });
-        Box::new(iter)
+        if options.descending {
+            Box::new(DescendingLogEntryIterator::new(
+                &self.entries,
+                options,
+                move |entry| entry.timestamp >= start && entry.timestamp < end,
+            ))
+        } else {
+            Box::new(AscendingLogEntryIterator::new(
+                &self.entries,
+                options,
+                move |entry| entry.timestamp >= start && entry.timestamp < end,
+            ))
+        }
     }
 
     pub fn query_by_key_prefix<'a, 'b>(
@@ -77,14 +86,105 @@ impl EventLogger {
     where
         'a: 'b,
     {
-        let iter = LogEntryIterator::new(&self.entries, options, move |entry| {
-            entry.key.starts_with(key_prefix)
-        });
-        Box::new(iter)
+        if options.descending {
+            Box::new(DescendingLogEntryIterator::new(
+                &self.entries,
+                options,
+                move |entry| entry.key.starts_with(key_prefix),
+            ))
+        } else {
+            Box::new(AscendingLogEntryIterator::new(
+                &self.entries,
+                options,
+                move |entry| entry.key.starts_with(key_prefix),
+            ))
+        }
+    }
+
+    pub fn delete_before(self: &Self, end: Timestamp) -> LogDeleteResult {
+        self.entries
+            .write()
+            .unwrap()
+            .retain(|log_entry| log_entry.timestamp >= end);
+        LogDeleteResult::Ok(())
+    }
+
+    pub fn delete_by_key_prefix(self: &Self, key_prefix: &str) -> LogDeleteResult {
+        self.entries
+            .write()
+            .unwrap()
+            .retain(|log_entry| !log_entry.key.starts_with(key_prefix));
+        LogDeleteResult::Ok(())
     }
 }
 
-pub struct LogEntryIterator<'a, F: Fn(&LogEntry) -> bool> {
+pub struct AscendingLogEntryIterator<'a, F: Fn(&LogEntry) -> bool> {
+    entries: &'a RwLock<Vec<LogEntry>>,
+    count: usize,
+    index: usize,
+    taken: usize,
+    filter: F,
+    options: &'a EventQueryOptions,
+}
+
+impl<'a, F: Fn(&LogEntry) -> bool> AscendingLogEntryIterator<'a, F> {
+    pub fn new(
+        entries: &'a RwLock<Vec<LogEntry>>,
+        options: &'a EventQueryOptions,
+        filter: F,
+    ) -> Self {
+        let count = entries.read().unwrap().len();
+        let index = if count > options.skip {
+            options.skip
+        } else {
+            count
+        };
+        Self {
+            entries,
+            filter: filter,
+            count,
+            index,
+            options,
+            taken: 0,
+        }
+    }
+}
+
+impl<'a, F: Fn(&LogEntry) -> bool> Iterator for AscendingLogEntryIterator<'a, F> {
+    type Item = LogEntry;
+
+    fn next(self: &mut Self) -> Option<Self::Item> {
+        loop {
+            if (self.index == self.count)
+                || (self.options.take > 0 && self.taken == self.options.take)
+            {
+                return None;
+            }
+
+            let entries = self.entries.read().unwrap();
+            let log_entry = entries.get(self.index);
+            self.index = self.index + 1;
+            match log_entry {
+                Some(entry) if (self.filter)(&entry) => {
+                    self.taken += 1;
+                    return Some(LogEntry {
+                        key: entry.key.clone(),
+                        timestamp: entry.timestamp,
+                        type_name: entry.type_name.clone(),
+                        serialization: match self.options.include_serialization {
+                            true => entry.serialization.clone(),
+                            false => None,
+                        },
+                    });
+                }
+                Some(_) => continue,
+                None => return None,
+            }
+        }
+    }
+}
+
+pub struct DescendingLogEntryIterator<'a, F: Fn(&LogEntry) -> bool> {
     entries: &'a RwLock<Vec<LogEntry>>,
     index: usize,
     taken: usize,
@@ -92,7 +192,7 @@ pub struct LogEntryIterator<'a, F: Fn(&LogEntry) -> bool> {
     options: &'a EventQueryOptions,
 }
 
-impl<'a, F: Fn(&LogEntry) -> bool> LogEntryIterator<'a, F> {
+impl<'a, F: Fn(&LogEntry) -> bool> DescendingLogEntryIterator<'a, F> {
     pub fn new(
         entries: &'a RwLock<Vec<LogEntry>>,
         options: &'a EventQueryOptions,
@@ -114,7 +214,7 @@ impl<'a, F: Fn(&LogEntry) -> bool> LogEntryIterator<'a, F> {
     }
 }
 
-impl<'a, F: Fn(&LogEntry) -> bool> Iterator for LogEntryIterator<'a, F> {
+impl<'a, F: Fn(&LogEntry) -> bool> Iterator for DescendingLogEntryIterator<'a, F> {
     type Item = LogEntry;
 
     fn next(self: &mut Self) -> Option<Self::Item> {

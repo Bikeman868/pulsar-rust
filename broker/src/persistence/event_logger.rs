@@ -13,14 +13,18 @@ pub struct LogEntry {
 
 pub struct EventQueryOptions {
     pub include_serialization: bool,
+    pub descending: bool,
     pub skip: usize,
     pub take: usize,
 }
+
+pub type LogDeleteResult = Result<(), ()>;
 
 impl EventQueryOptions {
     pub fn default() -> Self {
         Self {
             include_serialization: false,
+            descending: true,
             skip: 0,
             take: 0,
         }
@@ -28,6 +32,7 @@ impl EventQueryOptions {
     pub fn range(skip: usize, take: usize) -> Self {
         Self {
             include_serialization: false,
+            descending: true,
             skip,
             take,
         }
@@ -35,13 +40,15 @@ impl EventQueryOptions {
     pub fn limit(take: usize) -> Self {
         Self {
             include_serialization: false,
+            descending: true,
             skip: 0,
             take,
         }
     }
-    pub fn with_serialization() -> Self {
+    pub fn replay() -> Self {
         Self {
             include_serialization: true,
+            descending: false,
             skip: 0,
             take: 0,
         }
@@ -98,6 +105,20 @@ impl EventLogger {
     ) -> impl Iterator<Item = LogEntry> + use<'a> {
         match self {
             EventLogger::InMemory(p) => p.query_by_key_prefix(key_prefix, options),
+            EventLogger::FileSystem(_) => todo!(),
+        }
+    }
+
+    pub fn delete_before(self: &Self, end: Timestamp) -> LogDeleteResult {
+        match self {
+            EventLogger::InMemory(p) => p.delete_before(end),
+            EventLogger::FileSystem(_) => todo!(),
+        }
+    }
+
+    pub fn delete_by_key_prefix(self: &Self, key_prefix: &str) -> LogDeleteResult {
+        match self {
+            EventLogger::InMemory(p) => p.delete_by_key_prefix(key_prefix),
             EventLogger::FileSystem(_) => todo!(),
         }
     }

@@ -2,11 +2,13 @@ use config::Config;
 use std::{collections::HashMap, env, sync::Arc};
 
 use pulsar_rust_broker::{
+    api,
     data::DataLayer,
     persistence::{PersistenceLayer, PersistenceScheme},
 };
 
-fn main() {
+#[tokio::main]
+async fn main() {
     // Extract environment name from command line options
     let args: Vec<String> = env::args().collect();
     let environment: &'static str = match args.get(1) {
@@ -61,4 +63,6 @@ fn main() {
             .add_catalog(partition.topic_id, partition.partition_id, node.node_id)
             .unwrap();
     }
+
+    warp::serve(api::routes()).run(([127, 0, 0, 1], 8000)).await;
 }

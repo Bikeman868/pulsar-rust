@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     model::{
         data_types::{ConsumerId, SubscriptionId},
-        MessageRef,
+        messages::MessageRef,
     },
     persistence::Keyed,
 };

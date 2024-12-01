@@ -1,5 +1,5 @@
 use pulsar_rust_broker::{
-    model::{data_types::NodeId, MessageRef},
+    model::{data_types::NodeId, messages::MessageRef},
     persistence::{
         entity_persister::{LoadError, LoadResult},
         event_logger::{EventQueryOptions, LogEntry},
@@ -67,30 +67,135 @@ fn should_persist_events_in_memory() {
         .log_with_timestamp(&Nack::new(message_ref, 3, 12), 4)
         .unwrap();
 
-    let prefix = message_ref.topic_id.to_string() + ":" + &message_ref.partition_id.to_string();
+    let prefix =
+        PersistenceLayer::build_partition_prefix(message_ref.topic_id, message_ref.partition_id);
 
-    let options1 = EventQueryOptions::default();
-    let events1: Vec<LogEntry> = persistence
-        .events_by_key_prefix(&prefix, &options1)
+    // Default ordering is descending - for log display
+    let options = EventQueryOptions::default();
+    let events: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix, &options)
         .collect();
 
-    assert_eq!(events1.len(), 4);
+    assert_eq!(events.len(), 4);
 
-    assert_eq!(events1[0].timestamp, 4);
-    assert_eq!(events1[0].type_name, "Nack");
-    assert_eq!(events1[0].key, "1:16:12:544");
+    assert_eq!(events[0].timestamp, 4);
+    assert_eq!(events[0].type_name, "Nack");
+    assert_eq!(events[0].key, "1:16:12:544");
 
-    assert_eq!(events1[1].timestamp, 3);
-    assert_eq!(events1[2].timestamp, 2);
-    assert_eq!(events1[3].timestamp, 1);
+    assert_eq!(events[1].timestamp, 3);
+    assert_eq!(events[2].timestamp, 2);
+    assert_eq!(events[3].timestamp, 1);
 
-    let options2 = EventQueryOptions::range(1, 1);
-    let events2: Vec<LogEntry> = persistence
-        .events_by_key_prefix(&prefix, &options2)
+    // When replaying events to recover state. we want ascending order
+    let options = EventQueryOptions::replay();
+    let events: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix, &options)
         .collect();
 
-    assert_eq!(events2.len(), 1);
-    assert_eq!(events2[0].timestamp, 3);
-    assert_eq!(events2[0].type_name, "Nack");
-    assert_eq!(events2[0].key, "1:16:12:544");
+    assert_eq!(events.len(), 4);
+
+    assert_eq!(events[0].timestamp, 1);
+    assert_eq!(events[0].type_name, "Publish");
+    assert_eq!(events[0].key, "1:16:12:544");
+
+    assert_eq!(events[1].timestamp, 2);
+    assert_eq!(events[2].timestamp, 3);
+    assert_eq!(events[3].timestamp, 4);
+
+    let options = EventQueryOptions::range(1, 1);
+    let events: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix, &options)
+        .collect();
+
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].timestamp, 3);
+    assert_eq!(events[0].type_name, "Nack");
+    assert_eq!(events[0].key, "1:16:12:544");
+}
+
+#[test]
+fn should_selectively_delete_events() {
+    let persistence =
+        PersistenceLayer::new(PersistenceScheme::InMemory, PersistenceScheme::InMemory);
+
+    for topic_id in 1..=3 {
+        for partition_id in 1..=3 {
+            for catalog_id in 1..=2 {
+                for message_id in 1..=5 {
+                    persistence
+                        .log(&Publish::new(MessageRef {
+                            topic_id: topic_id,
+                            partition_id: partition_id,
+                            catalog_id: catalog_id,
+                            message_id: message_id,
+                        }))
+                        .unwrap();
+
+                    persistence
+                        .log(&Ack::new(
+                            MessageRef {
+                                topic_id: topic_id,
+                                partition_id: partition_id,
+                                catalog_id: catalog_id,
+                                message_id: message_id,
+                            },
+                            1,
+                            1,
+                        ))
+                        .unwrap();
+                }
+            }
+        }
+    }
+
+    let prefix1 = PersistenceLayer::build_partition_prefix(1, 2);
+    let prefix2 = PersistenceLayer::build_partition_prefix(1, 3);
+    let prefix3 = PersistenceLayer::build_topic_prefix(1);
+    let options = EventQueryOptions::default();
+
+    let entries1: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix1, &options)
+        .collect();
+    let entries2: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix2, &options)
+        .collect();
+    let entries3: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix3, &options)
+        .collect();
+
+    assert_eq!(entries1.len(), 20);
+    assert_eq!(entries2.len(), 20);
+    assert_eq!(entries3.len(), 60);
+
+    persistence.delete_events_for_message(1, 2, 1, 1).unwrap();
+
+    let entries1: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix1, &options)
+        .collect();
+    let entries2: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix2, &options)
+        .collect();
+    let entries3: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix3, &options)
+        .collect();
+
+    assert_eq!(entries1.len(), 18);
+    assert_eq!(entries2.len(), 20);
+    assert_eq!(entries3.len(), 58);
+
+    persistence.delete_events_for_partition(1, 2).unwrap();
+
+    let entries1: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix1, &options)
+        .collect();
+    let entries2: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix2, &options)
+        .collect();
+    let entries3: Vec<LogEntry> = persistence
+        .events_by_key_prefix(&prefix3, &options)
+        .collect();
+
+    assert_eq!(entries1.len(), 0);
+    assert_eq!(entries2.len(), 20);
+    assert_eq!(entries3.len(), 40);
 }

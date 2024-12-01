@@ -7,12 +7,14 @@ pub mod logged_events;
 mod file_system;
 mod in_memory;
 
+use event_logger::LogDeleteResult;
 use serde::{Deserialize, Serialize};
 
 use self::entity_persister::{DeleteResult, EntityPersister, LoadResult, SaveResult};
 use self::event_logger::{EventLogger, EventQueryOptions, LogEntry, LogResult};
 
-use crate::model::data_types::VersionNumber;
+use crate::model::data_types::{CatalogId, MessageId, PartitionId, TopicId, VersionNumber};
+use crate::model::messages::MessageRef;
 use crate::{model::data_types::Timestamp, utils::now_epoc_millis};
 
 pub enum PersistenceScheme {
@@ -66,7 +68,7 @@ impl Keyed for Key {
 }
 
 pub struct PersistenceLayer {
-    event_persister: EventLogger,
+    event_logger: EventLogger,
     entity_persister: EntityPersister,
 }
 
@@ -76,7 +78,7 @@ impl PersistenceLayer {
         entity_persistence: PersistenceScheme,
     ) -> Self {
         Self {
-            event_persister: match event_persistence {
+            event_logger: match event_persistence {
                 PersistenceScheme::InMemory => {
                     EventLogger::InMemory(in_memory::event_logger::EventLogger::new())
                 }
@@ -99,7 +101,7 @@ impl PersistenceLayer {
 
     #[cfg(debug_assertions)]
     pub fn delete_all(self: &Self) {
-        self.event_persister.delete_all();
+        self.event_logger.delete_all();
         self.entity_persister.delete_all();
     }
 
@@ -119,7 +121,7 @@ impl PersistenceLayer {
     }
 
     pub fn log<T: Keyed + Serialize>(self: &Self, event: &T) -> LogResult {
-        self.event_persister.log(event, now_epoc_millis())
+        self.event_logger.log(event, now_epoc_millis())
     }
 
     pub fn log_with_timestamp<T: Keyed + Serialize>(
@@ -127,7 +129,7 @@ impl PersistenceLayer {
         event: &T,
         timestamp: Timestamp,
     ) -> LogResult {
-        self.event_persister.log(event, timestamp)
+        self.event_logger.log(event, timestamp)
     }
 
     pub fn events_by_key_prefix<'a>(
@@ -135,8 +137,38 @@ impl PersistenceLayer {
         key_prefix: &'a str,
         options: &'a EventQueryOptions,
     ) -> impl Iterator<Item = LogEntry> + use<'a> {
-        self.event_persister
-            .query_by_key_prefix(key_prefix, options)
+        self.event_logger.query_by_key_prefix(key_prefix, options)
+    }
+
+    pub fn build_topic_prefix(topic_id: TopicId) -> String {
+        topic_id.to_string() + ":"
+    }
+
+    pub fn build_partition_prefix(topic_id: TopicId, partition_id: PartitionId) -> String {
+        topic_id.to_string() + ":" + &partition_id.to_string() + ":"
+    }
+
+    pub fn build_catalog_prefix(
+        topic_id: TopicId,
+        partition_id: PartitionId,
+        catalog_id: CatalogId,
+    ) -> String {
+        topic_id.to_string() + ":" + &partition_id.to_string() + ":" + &catalog_id.to_string() + ":"
+    }
+
+    pub fn build_message_prefix(
+        topic_id: TopicId,
+        partition_id: PartitionId,
+        catalog_id: CatalogId,
+        message_id: MessageId,
+    ) -> String {
+        topic_id.to_string()
+            + ":"
+            + &partition_id.to_string()
+            + ":"
+            + &catalog_id.to_string()
+            + ":"
+            + &message_id.to_string()
     }
 
     pub fn events_by_timestamp<'a>(
@@ -145,6 +177,59 @@ impl PersistenceLayer {
         end: Timestamp,
         options: &'a EventQueryOptions,
     ) -> impl Iterator<Item = LogEntry> + use<'a> {
-        self.event_persister.query_by_timestamp(start, end, options)
+        self.event_logger.query_by_timestamp(start, end, options)
+    }
+
+    pub fn delete_events_before(self: &Self, end: Timestamp) -> LogDeleteResult {
+        self.event_logger.delete_before(end)
+    }
+
+    pub fn delete_events_for_topic(self: &Self, topic_id: TopicId) -> LogDeleteResult {
+        self.event_logger
+            .delete_by_key_prefix(&Self::build_topic_prefix(topic_id))
+    }
+
+    pub fn delete_events_for_partition(
+        self: &Self,
+        topic_id: TopicId,
+        partition_id: PartitionId,
+    ) -> LogDeleteResult {
+        self.event_logger
+            .delete_by_key_prefix(&Self::build_partition_prefix(topic_id, partition_id))
+    }
+
+    pub fn delete_events_for_catalog(
+        self: &Self,
+        topic_id: TopicId,
+        partition_id: PartitionId,
+        catalog_id: CatalogId,
+    ) -> LogDeleteResult {
+        self.event_logger
+            .delete_by_key_prefix(&Self::build_catalog_prefix(
+                topic_id,
+                partition_id,
+                catalog_id,
+            ))
+    }
+
+    pub fn delete_events_for_message(
+        self: &Self,
+        topic_id: TopicId,
+        partition_id: PartitionId,
+        catalog_id: CatalogId,
+        message_id: MessageId,
+    ) -> LogDeleteResult {
+        self.event_logger
+            .delete_by_key_prefix(&Self::build_message_prefix(
+                topic_id,
+                partition_id,
+                catalog_id,
+                message_id,
+            ))
+    }
+
+    pub fn delete_events_for_message_ref(self: &Self, message_ref: MessageRef) -> LogDeleteResult {
+        self.event_logger
+            .delete_by_key_prefix(&message_ref.to_key())
     }
 }

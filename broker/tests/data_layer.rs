@@ -1,5 +1,11 @@
 use pulsar_rust_broker::{
-    data::{DataErr, DataLayer}, model::data_types::NodeId, persistence::{entity_persister::{LoadError, LoadResult}, persisted_entities::{Catalog, Partition, Subscription, Topic}, PersistenceLayer, PersistenceScheme}
+    data::{DataErr, DataLayer},
+    model::data_types::NodeId,
+    persistence::{
+        entity_persister::{LoadError, LoadResult},
+        persisted_entities::{Catalog, Partition, Subscription, Topic},
+        PersistenceLayer, PersistenceScheme,
+    },
 };
 
 #[test]

@@ -3,10 +3,10 @@
 This executable listens for requests from clients, and provides the following functionallity:
 - Allocating unique IDs to each message within each topic partition
 - Keeping track of which subscriptions have consumed which messages
-- Delivering each message at least once to a consumer
+- Delivering each message at least once to each subscriber
 - Re-delivering messages that are negatively acknowledged
 - Re-delivering messages that are not acknowledged in a timely manner
-- Durably storing state with ACID guarantees so that messages can not be lost once confirmed
+- Durably storing state with ACID guarantees so that messages can not be lost once published
 - Balancing partitions across broker instances to eaven out the load
 - Moving partitions to new broker instances if a broker instance fails
 
@@ -28,10 +28,9 @@ Assumes that the application developer:
 Message publication consists of:
 - The application calls the client library with the topic name, message key, custom attributes, and message data
 - The client library hashes the key to a partition, maps the partition to the broker instance for that partition
-- The client library calls the broker requesting a message id
-- The broker returns a unique ID for this message
-- The client uses the topic + partitionid + messageid to save the message data to a storage medium
-- The client calls the broker and asks it to publish the message
+- The client library generates a unique identifer for the message
+- The client uploads the data to a storage mechanism using the generated identifier
+- The client calls the broker and asks it to publish the message, including the generated identifier as message attribute
 - The broker adds the message to the undelivered message queue of each subscriber
 
 Message consumption consists of:
@@ -41,7 +40,7 @@ Message consumption consists of:
 - The client library presents messsage metadata to the application 
 - Message metadata consists of the topic name, partitionid, messageid, custom attributes, retry count, and age of message
 - For messages that the application wants to process, it calls the client library to get the message data
-- The client library uses topic + partitionid + messageid to retrieve the message data from a storage medium
+- The client library uses generatd identifier in the message attributes to retrieve the message data from a storage medium
 - The client returns the message metadata and message data to the application for processing
 - The application calls methods in the client library to ack or negatively ack the message
 - The client library calls the broker to pass on the ack/nack response from the application
