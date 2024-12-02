@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use crate::{data::DataLayer, persistence::persisted_entities};
 
@@ -12,18 +15,18 @@ use super::{
 /// cluster update the database. Other data is updated dynamically as messages are published
 /// and consumed. These dynamic updates are logged as events that can be replayed to restore
 /// the correct state after a node restart.
-pub struct Cluster<'a> {
-    data_layer: &'a DataLayer<'a>,
-    refresh_status: RefreshStatus,
+pub struct Cluster {
+    data_layer: Arc<DataLayer>,
     refresh_lock: Mutex<bool>,
-    persisted_data: persisted_entities::Cluster,
-    nodes: HashMap<NodeId, super::Node>,
-    topics: HashMap<TopicId, super::Topic>,
-    my_node_id: NodeId,
+    pub refresh_status: RefreshStatus,
+    pub persisted_data: persisted_entities::Cluster,
+    pub nodes: HashMap<NodeId, super::Node>,
+    pub topics: HashMap<TopicId, super::Topic>,
+    pub my_node_id: NodeId,
 }
 
-impl<'a> Cluster<'a> {
-    pub fn new(data_layer: &'a DataLayer, my_ip_address: &str) -> Self {
+impl Cluster {
+    pub fn new(data_layer: Arc<DataLayer>, my_ip_address: &str) -> Self {
         let mut cluster = data_layer.get_cluster().unwrap();
 
         let my_node_id = match cluster
@@ -43,13 +46,13 @@ impl<'a> Cluster<'a> {
         let nodes: HashMap<NodeId, super::Node> = cluster
             .nodes
             .iter()
-            .map(|&node_id| (node_id, super::Node::new(data_layer, node_id)))
+            .map(|&node_id| (node_id, super::Node::new(data_layer.clone(), node_id)))
             .collect();
 
         let topics: HashMap<TopicId, super::Topic> = cluster
             .topics
             .iter()
-            .map(|&topic_id| (topic_id, super::Topic::new(data_layer, topic_id)))
+            .map(|&topic_id| (topic_id, super::Topic::new(data_layer.clone(), topic_id)))
             .collect();
 
         Self {
@@ -83,7 +86,7 @@ impl<'a> Cluster<'a> {
         drop(refresh_lock);
     }
 
-    pub fn my_node(self: &'a Self) -> &'a super::Node {
+    pub fn my_node(self: &Self) -> &super::Node {
         self.nodes.get(&self.my_node_id).unwrap()
     }
 }

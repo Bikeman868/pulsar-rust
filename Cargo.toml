@@ -19,5 +19,6 @@ serde = { version = "*", features = ["derive"] }
 rmp-serde = { version = "*" }
 config = { version = "*" }
 chrono = { version = "*" }
-tokio = { version = "*", features = ["full"] }
+hyper = { version = "*" }
+tokio = { version = "*", features = ["macros", "rt-multi-thread"] }
 warp = { version = "*" }

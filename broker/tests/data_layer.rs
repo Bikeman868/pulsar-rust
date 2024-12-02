@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use pulsar_rust_broker::{
     data::{DataErr, DataLayer},
     model::data_types::NodeId,
@@ -10,9 +12,11 @@ use pulsar_rust_broker::{
 
 #[test]
 fn should_persist_data_in_memory() {
-    let persistence =
-        PersistenceLayer::new(PersistenceScheme::InMemory, PersistenceScheme::InMemory);
-    let data_layer = DataLayer::new("local", &persistence);
+    let persistence = Arc::new(PersistenceLayer::new(
+        PersistenceScheme::InMemory,
+        PersistenceScheme::InMemory,
+    ));
+    let data_layer = DataLayer::new("local".to_owned(), persistence.clone());
 
     let saved_node = data_layer.add_node("127.0.0.1").unwrap();
 
@@ -110,9 +114,11 @@ fn should_persist_data_in_memory() {
 
 #[test]
 fn should_delete_nodes() {
-    let persistence =
-        PersistenceLayer::new(PersistenceScheme::InMemory, PersistenceScheme::InMemory);
-    let data_layer = DataLayer::new("local", &persistence);
+    let persistence = Arc::new(PersistenceLayer::new(
+        PersistenceScheme::InMemory,
+        PersistenceScheme::InMemory,
+    ));
+    let data_layer = DataLayer::new("local".to_owned(), persistence.clone());
 
     let node1 = data_layer.add_node("10.0.22.1").unwrap();
     let node2 = data_layer.add_node("10.0.22.2").unwrap();
@@ -142,9 +148,11 @@ fn should_delete_nodes() {
 
 #[test]
 fn should_cascade_delete_topic() {
-    let persistence =
-        PersistenceLayer::new(PersistenceScheme::InMemory, PersistenceScheme::InMemory);
-    let data_layer = DataLayer::new("local", &persistence);
+    let persistence = Arc::new(PersistenceLayer::new(
+        PersistenceScheme::InMemory,
+        PersistenceScheme::InMemory,
+    ));
+    let data_layer = DataLayer::new("local".to_owned(), persistence.clone());
 
     let node_id: NodeId = 1;
     let topic1 = data_layer.add_topic("topic1").unwrap();

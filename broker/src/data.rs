@@ -1,4 +1,4 @@
-use std::fmt;
+use std::sync::Arc;
 
 use serde::Deserialize;
 
@@ -22,9 +22,9 @@ pub type ReadResult<T> = Result<T, DataErr>;
 pub type AddResult<T> = Result<T, DataErr>;
 pub type UpdateResult<T> = Result<T, DataErr>;
 
-pub struct DataLayer<'a> {
-    cluster_name: &'a str,
-    persistence: &'a PersistenceLayer,
+pub struct DataLayer {
+    cluster_name: String,
+    persistence: Arc<PersistenceLayer>,
 }
 
 /// Provides functions for adding, retrieving, updating, and deleting entities that are persisted to the database.
@@ -40,8 +40,8 @@ pub struct DataLayer<'a> {
 /// Note that this data layer is designed for storing configuration data only, and is not suitable for high throughput.
 /// As originally implemented, we store topics, partitions etc and these things change very rarely. Do not add volatile
 /// information to these entities and try to update them thousands of times per second, it won't work.
-impl<'a> DataLayer<'a> {
-    pub fn new(cluster_name: &'a str, persistence: &'a PersistenceLayer) -> Self {
+impl DataLayer {
+    pub fn new(cluster_name: String, persistence: Arc<PersistenceLayer>) -> Self {
         Self {
             cluster_name,
             persistence,

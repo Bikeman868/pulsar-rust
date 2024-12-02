@@ -9,5 +9,6 @@ serde.workspace = true
 rmp-serde.workspace = true
 config.workspace = true
 chrono.workspace = true
+hyper = { version = "*", features = ["http2", "server"] }
 tokio.workspace = true
 warp.workspace = true

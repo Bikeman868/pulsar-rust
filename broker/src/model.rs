@@ -2,6 +2,8 @@ pub mod cluster;
 pub mod data_types;
 pub mod messages;
 
+use std::sync::Arc;
+
 use crate::{data::DataLayer, persistence::persisted_entities};
 use data_types::{CatalogId, NodeId, PartitionId, SubscriptionId, TopicId};
 
@@ -19,12 +21,12 @@ pub enum RefreshStatus {
 
 #[derive(Debug)]
 pub struct Node {
-    persisted_data: persisted_entities::Node,
-    refresh_status: RefreshStatus,
+    pub persisted_data: persisted_entities::Node,
+    pub refresh_status: RefreshStatus,
 }
 
 impl Node {
-    pub fn new(data_layer: &DataLayer, node_id: NodeId) -> Self {
+    pub fn new(data_layer: Arc<DataLayer>, node_id: NodeId) -> Self {
         Self {
             persisted_data: data_layer.get_node(node_id).unwrap(),
             refresh_status: RefreshStatus::Updated,
@@ -51,25 +53,25 @@ impl Node {
 
 #[derive(Debug)]
 pub struct Topic {
-    persisted_data: persisted_entities::Topic,
-    refresh_status: RefreshStatus,
+    pub persisted_data: persisted_entities::Topic,
+    pub refresh_status: RefreshStatus,
 }
 
 impl Topic {
-    pub fn new(data_layer: &DataLayer, topic_id: TopicId) -> Self {
+    pub fn new(data_layer: Arc<DataLayer>, topic_id: TopicId) -> Self {
         Self {
             persisted_data: data_layer.get_topic(topic_id).unwrap(),
             refresh_status: RefreshStatus::Updated,
         }
     }
 
-    pub fn refresh(self: &mut Self, data_layer: &DataLayer) {}
+    pub fn refresh(self: &mut Self, _data_layer: Arc<DataLayer>) {}
 }
 
 #[derive(Debug)]
 pub struct Partition {
-    persisted_data: persisted_entities::Partition,
-    refresh_status: RefreshStatus,
+    pub persisted_data: persisted_entities::Partition,
+    pub refresh_status: RefreshStatus,
 }
 
 impl Partition {
@@ -80,13 +82,13 @@ impl Partition {
         }
     }
 
-    pub fn refresh(self: &mut Self, data_layer: &DataLayer) {}
+    pub fn refresh(self: &mut Self, _data_layer: Arc<DataLayer>) {}
 }
 
 #[derive(Debug)]
 pub struct Catalog {
-    persisted_data: persisted_entities::Catalog,
-    refresh_status: RefreshStatus,
+    pub persisted_data: persisted_entities::Catalog,
+    pub refresh_status: RefreshStatus,
 }
 
 impl Catalog {
@@ -104,13 +106,13 @@ impl Catalog {
         }
     }
 
-    pub fn refresh(self: &mut Self, data_layer: &DataLayer) {}
+    pub fn refresh(self: &mut Self, _data_layer: Arc<DataLayer>) {}
 }
 
 #[derive(Debug)]
 pub struct Subscription {
-    persisted_data: persisted_entities::Subscription,
-    refresh_status: RefreshStatus,
+    pub persisted_data: persisted_entities::Subscription,
+    pub refresh_status: RefreshStatus,
 }
 
 impl Subscription {
@@ -123,5 +125,5 @@ impl Subscription {
         }
     }
 
-    pub fn refresh(self: &mut Self, data_layer: &DataLayer) {}
+    pub fn refresh(self: &mut Self, _data_layer: Arc<DataLayer>) {}
 }

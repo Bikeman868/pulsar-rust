@@ -1,15 +1,17 @@
 use config::Config;
-use std::{collections::HashMap, env, sync::Arc};
+use std::{collections::HashMap, env, net::Ipv4Addr, str::FromStr, sync::Arc};
 
 use pulsar_rust_broker::{
     api,
     data::DataLayer,
+    model::cluster::Cluster,
     persistence::{PersistenceLayer, PersistenceScheme},
+    App,
 };
 
 #[tokio::main]
 async fn main() {
-    // Extract environment name from command line options
+    // Extract pod specific configuration from command line options
     let args: Vec<String> = env::args().collect();
     let environment: &'static str = match args.get(1) {
         Some(s) => s.clone().leak(),
@@ -19,6 +21,20 @@ async fn main() {
         Some(s) => s.clone().leak(),
         None => "local",
     };
+    let ip_address: &'static str = match args.get(3) {
+        Some(s) => s.clone().leak(),
+        None => "127.0.0.1",
+    };
+    let port: &'static str = match args.get(4) {
+        Some(s) => s.clone().leak(),
+        None => "8000",
+    };
+
+    let ipv4 = Ipv4Addr::from_str(ip_address)
+        .expect(&format!("Failed to parse {ip_address} as an IPv$ address"));
+    let port: u16 = port
+        .parse()
+        .expect(&format!("Failed to parse {port} as a port number"));
 
     // Merge configuration sources for this environment
     let config = Config::builder()
@@ -44,16 +60,19 @@ async fn main() {
     ));
 
     // Build a data access layer on top of the persistence layer
-    let data_layer = Arc::new(DataLayer::new(cluster_name, &persistence_layer));
+    let data_layer = Arc::new(DataLayer::new(
+        cluster_name.to_owned(),
+        persistence_layer.clone(),
+    ));
 
-    // If this is a debug build, then delete all of the data and build a a dev configuration
+    // If this is a debug build, then delete all of the data and build a dev configuration
     #[cfg(debug_assertions)]
     {
         // Dalete all existing stored data
         persistence_layer.delete_all();
 
         // Create a development configuration in the database
-        let node = data_layer.add_node("127.0.0.1").unwrap();
+        let node = data_layer.add_node(&ip_address).unwrap();
         let topic = data_layer.add_topic("my-topic").unwrap();
         let partition = data_layer.add_partition(topic.topic_id).unwrap();
         data_layer
@@ -64,5 +83,9 @@ async fn main() {
             .unwrap();
     }
 
-    warp::serve(api::routes()).run(([127, 0, 0, 1], 8000)).await;
+    let cluster = Cluster::new(data_layer, ip_address);
+
+    let app = Arc::new(App { cluster });
+
+    warp::serve(api::routes(app)).run((ipv4, port)).await;
 }

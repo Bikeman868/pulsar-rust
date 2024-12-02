@@ -1,3 +1,5 @@
+use crate::App;
+use std::{convert::Infallible, sync::Arc};
 use warp::{Filter, Rejection, Reply};
 
 mod requests {}
@@ -7,9 +9,9 @@ mod responses {
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Deserialize, Serialize, Clone)]
-    pub struct Node<'a> {
+    pub struct Node {
         pub id: NodeId,
-        pub ip_address: &'a str,
+        pub ip_address: String,
     }
 }
 
@@ -27,39 +29,52 @@ mod docs {
 
 mod admin {
     use super::responses::Node;
+    use super::with_app;
+    use crate::model::data_types::NodeId;
+    use crate::App;
+    use std::sync::Arc;
     use warp::{get, path, reply::json, Filter, Rejection, Reply};
 
-    use crate::model::data_types::NodeId;
-
-    async fn get_node(node_id: NodeId) -> Result<impl Reply, Rejection> {
+    async fn get_node(node_id: NodeId, _app: Arc<App>) -> Result<impl Reply, Rejection> {
         let node = Node {
             id: node_id,
-            ip_address: "10.2.45.6",
+            ip_address: String::from("10.2.45.6"),
         };
         Ok(json(&node))
     }
 
-    pub fn routes() -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        path! {"v1" / "admin" / "node" / NodeId}
+    pub fn routes(app: Arc<App>) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+        path!("v1" / "admin" / "node" / NodeId)
             .and(get())
+            .and(with_app(app.clone()))
             .and_then(get_node)
     }
 }
 
 mod pubsub {
-    use warp::{get, path, Filter, Rejection, Reply};
+    use super::with_app;
+    use crate::App;
+    use std::sync::Arc;
+    use warp::{get, path, reply::json, Filter, Rejection, Reply};
 
-    async fn get_brokers(_topic_name: String) -> Result<impl Reply, Rejection> {
-        Ok(warp::reply::html("Not yet implemented"))
+    async fn get_nodes(_topic_name: String, app: Arc<App>) -> Result<impl Reply, Rejection> {
+        Ok(json(&app.cluster.my_node().persisted_data))
     }
 
-    pub fn routes() -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        path! {"v1" / "pub" / "brokers" / String}
+    pub fn routes(app: Arc<App>) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+        path!("v1" / "pub" / "nodes" / String)
             .and(get())
-            .and_then(get_brokers)
+            .and(with_app(app.clone()))
+            .and_then(get_nodes)
     }
 }
 
-pub fn routes() -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    pubsub::routes().or(admin::routes()).or(docs::routes())
+fn with_app<'a>(app: Arc<App>) -> impl Filter<Extract = (Arc<App>,), Error = Infallible> + Clone {
+    warp::any().map(move || app.clone())
+}
+
+pub fn routes(app: Arc<App>) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    pubsub::routes(app.clone())
+        .or(admin::routes(app.clone()))
+        .or(docs::routes())
 }

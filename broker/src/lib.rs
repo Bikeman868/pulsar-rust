@@ -1,3 +1,5 @@
+use model::cluster::Cluster;
+
 /// Defines the internal data structures that are used to process messages
 pub mod model;
 
@@ -21,3 +23,7 @@ pub mod node_sync;
 
 /// Miscelaneous utility functions
 pub mod utils;
+
+pub struct App {
+    pub cluster: Cluster,
+}
