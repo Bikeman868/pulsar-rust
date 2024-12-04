@@ -1,3 +1,19 @@
+/*
+Provides functions for adding, retrieving, updating, and deleting entities that are persisted to the database.
+
+If two threads (even ones running on different pods) simultaneously read-modify-write the same entity, then
+one thread will succeed and the other will retry the whole read-modify-write operation. This guarantees that
+all updates are persisted.
+
+Ensures referential integrity between entities. For example adding or deleting a partition updates the
+partition list of the topic it belongs to. Also does cascading deletes, so deleting a topic will delete all of
+the partitions and subscriptions, and for each partition, the catalogs will be deleted.
+
+Note that this data layer is designed for storing configuration data only, and is not suitable for high throughput.
+As originally implemented, we store topics, partitions etc and these things change very rarely. Do not add volatile
+information to these entities and try to update them thousands of times per second, it won't work.
+*/
+
 use std::sync::Arc;
 
 use serde::Deserialize;
@@ -27,19 +43,6 @@ pub struct DataLayer {
     persistence: Arc<PersistenceLayer>,
 }
 
-/// Provides functions for adding, retrieving, updating, and deleting entities that are persisted to the database.
-///
-/// If two threads (even ones running on different pods) simultaneously read-modify-write the same entity, then
-/// one thread will succeed and the other will retry the whole read-modify-write operation. This guarantees that
-/// all updates are persisted.
-///
-/// Ensures referential integrity between entities. For example adding or deleting a partition listt update the
-/// partition list of the topic it belongs to. Also does cascading deletes, so deleting a topic will delete all of
-/// the partitions and subscriptions, and for each partition, the catalogs will be deleted.
-///
-/// Note that this data layer is designed for storing configuration data only, and is not suitable for high throughput.
-/// As originally implemented, we store topics, partitions etc and these things change very rarely. Do not add volatile
-/// information to these entities and try to update them thousands of times per second, it won't work.
 impl DataLayer {
     pub fn new(cluster_name: String, persistence: Arc<PersistenceLayer>) -> Self {
         Self {

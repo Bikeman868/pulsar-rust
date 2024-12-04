@@ -1,8 +1,15 @@
+/*
+Defines the shared internal state of the application. Some of this state is
+persisted to the database, and some is just updated in memory.
+To recover the proper state after a restart, the applications persists an event
+log that can be replayed at startup.
+*/
+
 pub mod cluster;
 pub mod data_types;
 pub mod messages;
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{data::DataLayer, persistence::persisted_entities};
 use data_types::{CatalogId, NodeId, PartitionId, SubscriptionId, TopicId};
@@ -21,15 +28,21 @@ pub enum RefreshStatus {
 
 #[derive(Debug)]
 pub struct Node {
-    pub persisted_data: persisted_entities::Node,
-    pub refresh_status: RefreshStatus,
+    persisted_data: persisted_entities::Node,
+    refresh_status: RefreshStatus,
+    pub node_id: NodeId,
+    pub ip_address: String,
 }
 
 impl Node {
     pub fn new(data_layer: Arc<DataLayer>, node_id: NodeId) -> Self {
+        let persisted_data = data_layer.get_node(node_id).unwrap();
+        let ip_address = persisted_data.ip_address.clone();
         Self {
-            persisted_data: data_layer.get_node(node_id).unwrap(),
+            node_id,
+            persisted_data,
             refresh_status: RefreshStatus::Updated,
+            ip_address,
         }
     }
 
@@ -53,15 +66,37 @@ impl Node {
 
 #[derive(Debug)]
 pub struct Topic {
-    pub persisted_data: persisted_entities::Topic,
-    pub refresh_status: RefreshStatus,
+    persisted_data: persisted_entities::Topic,
+    refresh_status: RefreshStatus,
+    pub topic_id: TopicId,
+    pub name: String,
+    pub partitions: Arc<HashMap<PartitionId, Partition>>,
 }
 
 impl Topic {
     pub fn new(data_layer: Arc<DataLayer>, topic_id: TopicId) -> Self {
+        let persisted_data = data_layer.get_topic(topic_id).unwrap();
+
+        let partitions: Arc<HashMap<PartitionId, Partition>> = Arc::new(
+            persisted_data
+                .partitions
+                .iter()
+                .map(|&partition_id| {
+                    (
+                        partition_id,
+                        Partition::new(data_layer.clone(), topic_id, partition_id),
+                    )
+                })
+                .collect(),
+        );
+        let name = persisted_data.name.clone();
+
         Self {
-            persisted_data: data_layer.get_topic(topic_id).unwrap(),
+            persisted_data,
             refresh_status: RefreshStatus::Updated,
+            topic_id,
+            name,
+            partitions,
         }
     }
 
@@ -70,15 +105,36 @@ impl Topic {
 
 #[derive(Debug)]
 pub struct Partition {
-    pub persisted_data: persisted_entities::Partition,
-    pub refresh_status: RefreshStatus,
+    persisted_data: persisted_entities::Partition,
+    refresh_status: RefreshStatus,
+    pub topic_id: TopicId,
+    pub partition_id: PartitionId,
+    pub catalogs: Arc<HashMap<CatalogId, Catalog>>,
 }
 
 impl Partition {
-    pub fn new(data_layer: &DataLayer, topic_id: TopicId, partition_id: PartitionId) -> Self {
+    pub fn new(data_layer: Arc<DataLayer>, topic_id: TopicId, partition_id: PartitionId) -> Self {
+        let persisted_data = data_layer.get_partition(topic_id, partition_id).unwrap();
+
+        let catalogs: Arc<HashMap<CatalogId, Catalog>> = Arc::new(
+            persisted_data
+                .catalogs
+                .iter()
+                .map(|&catalog_id| {
+                    (
+                        catalog_id,
+                        Catalog::new(data_layer.clone(), topic_id, partition_id, catalog_id),
+                    )
+                })
+                .collect(),
+        );
+
         Self {
-            persisted_data: data_layer.get_partition(topic_id, partition_id).unwrap(),
+            persisted_data,
             refresh_status: RefreshStatus::Updated,
+            topic_id,
+            partition_id,
+            catalogs,
         }
     }
 
@@ -87,21 +143,32 @@ impl Partition {
 
 #[derive(Debug)]
 pub struct Catalog {
-    pub persisted_data: persisted_entities::Catalog,
-    pub refresh_status: RefreshStatus,
+    persisted_data: persisted_entities::Catalog,
+    refresh_status: RefreshStatus,
+    pub topic_id: TopicId,
+    pub partition_id: PartitionId,
+    pub catalog_id: CatalogId,
+    pub node_id: NodeId,
 }
 
 impl Catalog {
     pub fn new(
-        data_layer: &DataLayer,
+        data_layer: Arc<DataLayer>,
         topic_id: TopicId,
         partition_id: PartitionId,
         catalog_id: CatalogId,
     ) -> Self {
+        let persisted_data = data_layer
+            .get_catalog(topic_id, partition_id, catalog_id)
+            .unwrap();
+        let node_id = persisted_data.node_id;
+
         Self {
-            persisted_data: data_layer
-                .get_catalog(topic_id, partition_id, catalog_id)
-                .unwrap(),
+            persisted_data,
+            topic_id,
+            partition_id,
+            catalog_id,
+            node_id,
             refresh_status: RefreshStatus::Updated,
         }
     }
@@ -111,8 +178,8 @@ impl Catalog {
 
 #[derive(Debug)]
 pub struct Subscription {
-    pub persisted_data: persisted_entities::Subscription,
-    pub refresh_status: RefreshStatus,
+    persisted_data: persisted_entities::Subscription,
+    refresh_status: RefreshStatus,
 }
 
 impl Subscription {

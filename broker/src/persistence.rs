@@ -1,3 +1,8 @@
+/*
+This node provides an abstraction over the supported persistence mechanisms, so that the
+rest of the application doesn't need to know if state is persisted in memord, on disk,
+or in a database.
+*/
 pub mod entity_persister;
 pub mod persisted_entities;
 

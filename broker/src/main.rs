@@ -1,11 +1,25 @@
 use config::Config;
-use std::{collections::HashMap, env, net::Ipv4Addr, str::FromStr, sync::Arc};
+use std::{
+    collections::HashMap,
+    env,
+    net::Ipv4Addr,
+    str::FromStr,
+    sync::{
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+use tokio::{task, time};
 
 use pulsar_rust_broker::{
-    api,
+    admin_service::AdminService,
     data::DataLayer,
+    http_api_sockets, http_api_warp,
     model::cluster::Cluster,
     persistence::{PersistenceLayer, PersistenceScheme},
+    pub_service::PubService,
+    sub_service::SubService,
     App,
 };
 
@@ -83,9 +97,30 @@ async fn main() {
             .unwrap();
     }
 
-    let cluster = Cluster::new(data_layer, ip_address);
+    let cluster = Arc::new(Cluster::new(data_layer.clone(), ip_address));
 
-    let app = Arc::new(App { cluster });
+    let app = Arc::new(App {
+        request_count: Arc::new(AtomicU32::new(0)),
+        pub_service: Arc::new(PubService::new(cluster.clone())),
+        sub_service: Arc::new(SubService::new(cluster.clone())),
+        admin_service: Arc::new(AdminService::new(cluster.clone())),
+    });
 
-    warp::serve(api::routes(app)).run((ipv4, port)).await;
+    let signal = Arc::new(AtomicBool::new(false));
+    task::spawn(print_request_count(app.clone(), signal.clone()));
+
+    // http_api_warp::run(app.clone(), ipv4, port).await;
+    http_api_sockets::run(app.clone(), ipv4, port);
+
+    signal.store(true, Ordering::Relaxed);
+}
+
+async fn print_request_count(app: Arc<App>, signal: Arc<AtomicBool>) {
+    while !signal.load(Ordering::Relaxed) {
+        println!(
+            "{} requests",
+            app.clone().request_count.clone().swap(0, Ordering::Relaxed)
+        );
+        time::sleep(Duration::from_millis(1000)).await;
+    }
 }

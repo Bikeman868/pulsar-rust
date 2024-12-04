@@ -18,10 +18,10 @@ use super::{
 pub struct Cluster {
     data_layer: Arc<DataLayer>,
     refresh_lock: Mutex<bool>,
-    pub refresh_status: RefreshStatus,
-    pub persisted_data: persisted_entities::Cluster,
-    pub nodes: HashMap<NodeId, super::Node>,
-    pub topics: HashMap<TopicId, super::Topic>,
+    refresh_status: RefreshStatus,
+    persisted_data: persisted_entities::Cluster,
+    pub nodes: Arc<HashMap<NodeId, super::Node>>,
+    pub topics: Arc<HashMap<TopicId, super::Topic>>,
     pub my_node_id: NodeId,
 }
 
@@ -43,17 +43,21 @@ impl Cluster {
             }
         };
 
-        let nodes: HashMap<NodeId, super::Node> = cluster
-            .nodes
-            .iter()
-            .map(|&node_id| (node_id, super::Node::new(data_layer.clone(), node_id)))
-            .collect();
+        let nodes: Arc<HashMap<NodeId, super::Node>> = Arc::new(
+            cluster
+                .nodes
+                .iter()
+                .map(|&node_id| (node_id, super::Node::new(data_layer.clone(), node_id)))
+                .collect(),
+        );
 
-        let topics: HashMap<TopicId, super::Topic> = cluster
-            .topics
-            .iter()
-            .map(|&topic_id| (topic_id, super::Topic::new(data_layer.clone(), topic_id)))
-            .collect();
+        let topics: Arc<HashMap<TopicId, super::Topic>> = Arc::new(
+            cluster
+                .topics
+                .iter()
+                .map(|&topic_id| (topic_id, super::Topic::new(data_layer.clone(), topic_id)))
+                .collect(),
+        );
 
         Self {
             data_layer,
