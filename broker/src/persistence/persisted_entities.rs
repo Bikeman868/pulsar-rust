@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    model::data_types::{CatalogId, NodeId, PartitionId, SubscriptionId, TopicId, VersionNumber},
-    persistence::{Keyed, Versioned},
-};
+use pulsar_rust_net::data_types::{CatalogId, NodeId, PartitionId, PortNumber, SubscriptionId, TopicId, VersionNumber};
+use crate::persistence::{Keyed, Versioned};
 
 use super::Key;
 
@@ -70,15 +68,27 @@ pub struct Node {
     pub version: VersionNumber,
     pub node_id: NodeId,
     pub ip_address: String,
+    pub admin_port: PortNumber,
+    pub pubsub_port: PortNumber,
+    pub sync_port: PortNumber,
 }
 
 #[rustfmt::skip]
 impl Node {
-    pub fn new(node_id: NodeId, ip_address: &str) -> Self {
+    pub fn new(
+        node_id: NodeId, 
+        ip_address: &str,
+        admin_port: PortNumber,
+        pubsub_port: PortNumber,
+        sync_port: PortNumber,
+    ) -> Self {
         Self {
             version: 0,
             node_id,
             ip_address: ip_address.to_owned(),
+            admin_port,
+            pubsub_port,
+            sync_port,
         }
     }
     pub fn key(node_id: NodeId) -> impl Keyed {

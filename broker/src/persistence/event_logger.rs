@@ -1,7 +1,6 @@
 use serde::Serialize;
-
+use pulsar_rust_net::data_types::Timestamp;
 use super::{file_system, in_memory, Keyed};
-use crate::model::data_types::Timestamp;
 
 #[derive(Debug)]
 pub struct LogEntry {

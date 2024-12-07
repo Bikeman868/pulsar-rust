@@ -1,5 +1,6 @@
+use pulsar_rust_net::data_types::NodeId;
 use pulsar_rust_broker::{
-    model::{data_types::NodeId, messages::MessageRef},
+    model::messages::MessageRef,
     persistence::{
         entity_persister::{LoadError, LoadResult},
         event_logger::{EventQueryOptions, LogEntry},
@@ -16,7 +17,7 @@ fn should_persist_entities_in_memory() {
 
     let node_id: NodeId = 99;
     let node_key = Node::key(node_id);
-    let mut saved_node = Node::new(node_id, "127.0.0.1");
+    let mut saved_node = Node::new(node_id, "127.0.0.1", 8000, 8001, 8002);
 
     persistence.save(&mut saved_node).unwrap();
     assert_eq!(saved_node.version, 1);

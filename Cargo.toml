@@ -3,8 +3,7 @@
 members = [
     "broker",
     "client",
-    "storage",
-    "integration_tests",
+    "net",
 ]
 
 resolver = "2"
@@ -22,3 +21,5 @@ chrono = { version = "*" }
 hyper = { version = "*" }
 tokio = { version = "*", features = ["macros", "rt-multi-thread"] }
 warp = { version = "*" }
+ctrlc = { version = "*" }
+bytes = { version = "*" }

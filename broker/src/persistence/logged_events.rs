@@ -1,10 +1,7 @@
 use serde::{Deserialize, Serialize};
-
+use pulsar_rust_net::data_types::{ConsumerId, SubscriptionId};
 use crate::{
-    model::{
-        data_types::{ConsumerId, SubscriptionId},
-        messages::MessageRef,
-    },
+    model::messages::MessageRef,
     persistence::Keyed,
 };
 

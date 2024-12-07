@@ -1,9 +1,0 @@
-[package]
-name = "pulsar-rust-integration-tests"
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
-
-[dependencies]
-serde = { workspace = true }
-rmp-serde = { workspace = true }

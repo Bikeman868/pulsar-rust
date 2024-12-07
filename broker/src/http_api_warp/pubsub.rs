@@ -1,4 +1,4 @@
-use super::{responses::PartitionList, with_app};
+use super::with_app;
 use crate::App;
 use std::sync::{atomic::Ordering, Arc};
 use warp::{
@@ -6,6 +6,8 @@ use warp::{
     reply::{html, json},
     Filter, Rejection, Reply,
 };
+use pulsar_rust_net::contracts::v1::responses::PartitionList;
+
 type TopicName = String;
 
 async fn get_partitions_by_topic_name(
@@ -14,7 +16,7 @@ async fn get_partitions_by_topic_name(
 ) -> Result<impl Reply, Rejection> {
     app.request_count.clone().fetch_add(1, Ordering::Relaxed);
     match app.pub_service.partitions_by_topic_name(&topic_name) {
-        Some(partitions) => Ok(json(&PartitionList::from(&partitions))),
+        Some(partitions) => Ok(json(&PartitionList::from(&*partitions))),
         None => Err(warp::reject::not_found()),
     }
 }

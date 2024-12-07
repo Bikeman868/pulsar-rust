@@ -2,15 +2,12 @@ use std::{collections::HashMap, sync::RwLock};
 
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    model::data_types::VersionNumber,
-    persistence::{
-        entity_persister::{
-            DeleteError, DeleteResult, LoadError, LoadResult, SaveError, SaveResult,
-        },
-        Keyed, Versioned,
+use pulsar_rust_net::data_types::VersionNumber;
+use crate::persistence::{
+    entity_persister::{
+        DeleteError, DeleteResult, LoadError, LoadResult, SaveError, SaveResult,
     },
+    Keyed, Versioned,
 };
 
 pub struct StoredEntity {

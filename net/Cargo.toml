@@ -1,9 +1,9 @@
 [package]
-name = "pulsar-rust-storage"
+name = "pulsar_rust_net"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-serde = { workspace = true }
-rmp-serde = { workspace = true }
+serde.workspace = true
+rmp-serde.workspace = true

@@ -1,4 +1,3 @@
-use config::Config;
 use std::{
     collections::HashMap,
     env,
@@ -10,13 +9,14 @@ use std::{
     },
     time::Duration,
 };
+use config::Config;
 use tokio::{task, time};
 
 use pulsar_rust_broker::{
     admin_service::AdminService,
     data::DataLayer,
-    http_api_sockets, http_api_warp,
-    model::cluster::Cluster,
+    http_api_warp,
+    model::cluster::{Cluster, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT},
     persistence::{PersistenceLayer, PersistenceScheme},
     pub_service::PubService,
     sub_service::SubService,
@@ -27,28 +27,24 @@ use pulsar_rust_broker::{
 async fn main() {
     // Extract pod specific configuration from command line options
     let args: Vec<String> = env::args().collect();
+
+    // 1st command line arg is the name of the environment
     let environment: &'static str = match args.get(1) {
         Some(s) => s.clone().leak(),
         None => "dev",
     };
+
+    // 2nd command line arg is the name of the cluster that this node belongs to
     let cluster_name: &'static str = match args.get(2) {
         Some(s) => s.clone().leak(),
         None => "local",
     };
+
+    // 3rd command line arg is the IP address of the network interface to listen on
     let ip_address: &'static str = match args.get(3) {
         Some(s) => s.clone().leak(),
         None => "127.0.0.1",
     };
-    let port: &'static str = match args.get(4) {
-        Some(s) => s.clone().leak(),
-        None => "8000",
-    };
-
-    let ipv4 = Ipv4Addr::from_str(ip_address)
-        .expect(&format!("Failed to parse {ip_address} as an IPv$ address"));
-    let port: u16 = port
-        .parse()
-        .expect(&format!("Failed to parse {port} as a port number"));
 
     // Merge configuration sources for this environment
     let config = Config::builder()
@@ -86,7 +82,7 @@ async fn main() {
         persistence_layer.delete_all();
 
         // Create a development configuration in the database
-        let node = data_layer.add_node(&ip_address).unwrap();
+        let node = data_layer.add_node(&ip_address, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT).unwrap();
         let topic = data_layer.add_topic("my-topic").unwrap();
         let partition = data_layer.add_partition(topic.topic_id).unwrap();
         data_layer
@@ -106,13 +102,21 @@ async fn main() {
         admin_service: Arc::new(AdminService::new(cluster.clone())),
     });
 
-    let signal = Arc::new(AtomicBool::new(false));
-    task::spawn(print_request_count(app.clone(), signal.clone()));
+    let stop_signal = Arc::new(AtomicBool::new(false));
+    {
+        let stop_signal = stop_signal.clone();
+        ctrlc::set_handler(move || stop_signal.store(true, Ordering::Relaxed)).unwrap();
+    }
 
-    // http_api_warp::run(app.clone(), ipv4, port).await;
-    http_api_sockets::run(app.clone(), ipv4, port);
+    task::spawn(print_request_count(app.clone(), stop_signal.clone()));
 
-    signal.store(true, Ordering::Relaxed);
+    let node = cluster.my_node();
+    let ipv4 = Ipv4Addr::from_str(&node.ip_address).expect(&format!("Failed to parse {} as an IPv4 address", node.ip_address));
+    let admin_port = node.admin_port;
+    let _pubsub_port = node.pubsub_port;
+    let _sync_port = node.sync_port;
+
+    http_api_warp::run(app.clone(), ipv4, admin_port).await;
 }
 
 async fn print_request_count(app: Arc<App>, signal: Arc<AtomicBool>) {

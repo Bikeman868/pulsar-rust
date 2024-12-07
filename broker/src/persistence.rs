@@ -12,15 +12,17 @@ pub mod logged_events;
 mod file_system;
 mod in_memory;
 
-use event_logger::LogDeleteResult;
 use serde::{Deserialize, Serialize};
 
+use pulsar_rust_net::data_types::{Timestamp, CatalogId, MessageId, PartitionId, TopicId, VersionNumber};
 use self::entity_persister::{DeleteResult, EntityPersister, LoadResult, SaveResult};
-use self::event_logger::{EventLogger, EventQueryOptions, LogEntry, LogResult};
-
-use crate::model::data_types::{CatalogId, MessageId, PartitionId, TopicId, VersionNumber};
-use crate::model::messages::MessageRef;
-use crate::{model::data_types::Timestamp, utils::now_epoc_millis};
+use self::event_logger::{LogDeleteResult,EventLogger, EventQueryOptions, LogEntry, LogResult};
+use crate::{
+    model::{
+        messages::MessageRef,
+    }, 
+    utils::now_epoc_millis
+};
 
 pub enum PersistenceScheme {
     InMemory,

@@ -1,14 +1,16 @@
 [package]
-name = "pulsar-rust-client"
+name = "pulsar_rust_client"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-serde = { workspace = true }
-rmp-serde = { workspace = true }
+serde.workspace = true
+rmp-serde.workspace = true
+bytes.workspace = true
+
 hyper = { version = "1", features = ["http1", "client"] }
 tokio = { version = "1", features = ["full"] }
 http-body-util = "0.1"
 hyper-util = { version = "0.1", features = ["full"] }
-bytes = { version = "1" }
+pulsar_rust_net = { path = "../net" }

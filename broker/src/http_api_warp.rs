@@ -12,8 +12,6 @@ use warp::{Filter, Rejection, Reply};
 mod admin;
 mod docs;
 mod pubsub;
-mod requests;
-mod responses;
 
 fn with_app<'a>(app: Arc<App>) -> impl Filter<Extract = (Arc<App>,), Error = Infallible> + Clone {
     warp::any().map(move || app.clone())

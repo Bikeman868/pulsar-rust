@@ -1,14 +1,7 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
-
+use std::sync::{Arc, Mutex};
+use pulsar_rust_net::data_types::{NodeId, PortNumber};
 use crate::{data::DataLayer, persistence::persisted_entities};
-
-use super::{
-    data_types::{NodeId, TopicId},
-    RefreshStatus,
-};
+use super::{NodeList, TopicList, RefreshStatus};
 
 /// Represents all of the state information that is relevant to this node in the clueter.
 /// Some of this data is stored persistently and can be refreshed when other nodes in the
@@ -20,10 +13,14 @@ pub struct Cluster {
     refresh_lock: Mutex<bool>,
     refresh_status: RefreshStatus,
     persisted_data: persisted_entities::Cluster,
-    pub nodes: Arc<HashMap<NodeId, super::Node>>,
-    pub topics: Arc<HashMap<TopicId, super::Topic>>,
+    pub nodes: Arc<NodeList>,
+    pub topics: Arc<TopicList>,
     pub my_node_id: NodeId,
 }
+
+pub const DEFAULT_ADMIN_PORT: PortNumber = 8000;
+pub const DEFAULT_PUBSUB_PORT: PortNumber = 8000;
+pub const DEFAULT_SYNC_PORT: PortNumber = 8000;
 
 impl Cluster {
     pub fn new(data_layer: Arc<DataLayer>, my_ip_address: &str) -> Self {
@@ -37,28 +34,25 @@ impl Cluster {
         {
             Some(node) => node.node_id,
             None => {
-                let node = data_layer.add_node(&my_ip_address).unwrap();
+                let node = data_layer.add_node(
+                    &my_ip_address, 
+                    DEFAULT_ADMIN_PORT, 
+                    DEFAULT_PUBSUB_PORT,
+                    DEFAULT_SYNC_PORT)
+                .unwrap();
                 cluster = data_layer.get_cluster().unwrap();
                 node.node_id
             }
         };
 
-        let nodes: Arc<HashMap<NodeId, super::Node>> = Arc::new(
-            cluster
-                .nodes
-                .iter()
-                .map(|&node_id| (node_id, super::Node::new(data_layer.clone(), node_id)))
-                .collect(),
+        let nodes = Arc::new(
+            NodeList::new(cluster.nodes.iter().map(|&node_id|super::Node::new(data_layer.clone(), node_id)))
         );
-
-        let topics: Arc<HashMap<TopicId, super::Topic>> = Arc::new(
-            cluster
-                .topics
-                .iter()
-                .map(|&topic_id| (topic_id, super::Topic::new(data_layer.clone(), topic_id)))
-                .collect(),
+            
+        let topics = Arc::new(
+            TopicList::new(cluster.topics.iter().map(|&topic_id|super::Topic::new(data_layer.clone(), topic_id)))
         );
-
+            
         Self {
             data_layer,
             refresh_status: RefreshStatus::Updated,
@@ -91,6 +85,6 @@ impl Cluster {
     }
 
     pub fn my_node(self: &Self) -> &super::Node {
-        self.nodes.get(&self.my_node_id).unwrap()
+        self.nodes.by_id(self.my_node_id).unwrap()
     }
 }

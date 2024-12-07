@@ -1,8 +1,7 @@
 use std::sync::Arc;
-
+use pulsar_rust_net::data_types::NodeId;
 use pulsar_rust_broker::{
     data::{DataErr, DataLayer},
-    model::data_types::NodeId,
     persistence::{
         entity_persister::{LoadError, LoadResult},
         persisted_entities::{Catalog, Partition, Subscription, Topic},
@@ -18,7 +17,7 @@ fn should_persist_data_in_memory() {
     ));
     let data_layer = DataLayer::new("local".to_owned(), persistence.clone());
 
-    let saved_node = data_layer.add_node("127.0.0.1").unwrap();
+    let saved_node = data_layer.add_node("127.0.0.1", 8000, 8001, 8002).unwrap();
 
     let saved_topic1 = data_layer.add_topic("topic1").unwrap();
     let saved_partition1 = data_layer.add_partition(saved_topic1.topic_id).unwrap();
@@ -120,9 +119,9 @@ fn should_delete_nodes() {
     ));
     let data_layer = DataLayer::new("local".to_owned(), persistence.clone());
 
-    let node1 = data_layer.add_node("10.0.22.1").unwrap();
-    let node2 = data_layer.add_node("10.0.22.2").unwrap();
-    let node3 = data_layer.add_node("10.0.22.3").unwrap();
+    let node1 = data_layer.add_node("10.0.22.1", 8000, 8001, 8002).unwrap();
+    let node2 = data_layer.add_node("10.0.22.2", 8000, 8001, 8002).unwrap();
+    let node3 = data_layer.add_node("10.0.22.3", 8000, 8001, 8002).unwrap();
 
     let cluster = data_layer.get_cluster().unwrap();
     assert_eq!(cluster.nodes.len(), 3);

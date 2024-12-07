@@ -1,5 +1,5 @@
 [package]
-name = "pulsar-rust-broker"
+name = "pulsar_rust_broker"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -9,6 +9,8 @@ serde.workspace = true
 rmp-serde.workspace = true
 config.workspace = true
 chrono.workspace = true
-hyper = { version = "*", features = ["http2", "server"] }
 tokio.workspace = true
 warp.workspace = true
+ctrlc.workspace = true
+hyper = { version = "*", features = ["http1", "server"] }
+pulsar_rust_net = { path = "../net" }

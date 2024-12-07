@@ -22,7 +22,6 @@ pub mod sub_service;
 /// Cluster administration functions such as managing topics, subscriptions and partitions
 pub mod admin_service;
 
-pub mod http_api_sockets;
 /// Http REST API for managing nodes, topics, subscriptions etc
 pub mod http_api_warp;
 

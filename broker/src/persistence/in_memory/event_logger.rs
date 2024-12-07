@@ -6,13 +6,10 @@ use std::{
 use chrono::{DateTime, Utc};
 use rmp_serde::Serializer;
 use serde::Serialize;
-
-use crate::{
-    model::data_types::Timestamp,
-    persistence::{
-        event_logger::{EventQueryOptions, LogDeleteResult, LogEntry, LogResult},
-        Keyed,
-    },
+use pulsar_rust_net::data_types::Timestamp;
+use crate::persistence::{
+    event_logger::{EventQueryOptions, LogDeleteResult, LogEntry, LogResult},
+    Keyed,
 };
 
 pub struct EventLogger {

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::data_types::{CatalogId, MessageId, PartitionId, Timestamp, TopicId};
+use pulsar_rust_net::data_types::{CatalogId, MessageId, PartitionId, Timestamp, TopicId};
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize)]
 pub struct MessageRef {

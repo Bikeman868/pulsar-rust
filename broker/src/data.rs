@@ -17,14 +17,11 @@ information to these entities and try to update them thousands of times per seco
 use std::sync::Arc;
 
 use serde::Deserialize;
-
-use crate::{
-    model::data_types::{CatalogId, NodeId, PartitionId, SubscriptionId, TopicId},
-    persistence::{
-        entity_persister::{DeleteError, LoadError, SaveError},
-        persisted_entities::{Catalog, Cluster, Node, Partition, Subscription, Topic},
-        Keyed, PersistenceLayer,
-    },
+use pulsar_rust_net::data_types::{CatalogId, NodeId, PartitionId, PortNumber, SubscriptionId, TopicId};
+use crate::persistence::{
+    entity_persister::{DeleteError, LoadError, SaveError},
+    persisted_entities::{Catalog, Cluster, Node, Partition, Subscription, Topic},
+    Keyed, PersistenceLayer,    
 };
 
 #[derive(Debug, PartialEq)]
@@ -113,14 +110,9 @@ impl DataLayer {
         };
 
         let mut nodes: Vec<Node> = Vec::new();
-
         for node_id in cluster.nodes {
-            match self.get_node(node_id) {
-                Ok(node) => nodes.push(node),
-                Err(e) => return Err(e),
-            };
+            nodes.push(self.get_node(node_id)?);
         }
-
         Ok(nodes)
     }
 
@@ -131,57 +123,43 @@ impl DataLayer {
         };
 
         let mut topics: Vec<Topic> = Vec::new();
-
         for topic_id in cluster.topics {
-            match self.get_topic(topic_id) {
-                Ok(topic) => topics.push(topic),
-                Err(e) => return Err(e),
-            };
+            topics.push(self.get_topic(topic_id)?);
         }
-
         Ok(topics)
     }
 
     pub fn get_partitions(self: &Self, topic: &Topic) -> ReadResult<Vec<Partition>> {
         let mut partitions: Vec<Partition> = Vec::new();
-
         for partition_id in &topic.partitions {
-            match self.get_partition(topic.topic_id, *partition_id) {
-                Ok(partition) => partitions.push(partition),
-                Err(e) => return Err(e),
-            };
+            partitions.push(self.get_partition(topic.topic_id, *partition_id)?);
         }
-
         Ok(partitions)
     }
 
     pub fn get_catalogs(self: &Self, partition: &Partition) -> ReadResult<Vec<Catalog>> {
         let mut catalogs: Vec<Catalog> = Vec::new();
-
         for catalog_id in &partition.catalogs {
-            match self.get_catalog(partition.topic_id, partition.partition_id, *catalog_id) {
-                Ok(catalog) => catalogs.push(catalog),
-                Err(e) => return Err(e),
-            };
+            catalogs.push(self.get_catalog(partition.topic_id, partition.partition_id, *catalog_id)?);
         }
-
         Ok(catalogs)
     }
 
     pub fn get_subscriptions(self: &Self, topic: &Topic) -> ReadResult<Vec<Subscription>> {
         let mut subscriptions: Vec<Subscription> = Vec::new();
-
         for subscription_id in &topic.subscriptions {
-            match self.get_subscription(topic.topic_id, *subscription_id) {
-                Ok(subscription) => subscriptions.push(subscription),
-                Err(e) => return Err(e),
-            };
+            subscriptions.push(self.get_subscription(topic.topic_id, *subscription_id)?);
         }
-
         Ok(subscriptions)
     }
 
-    pub fn add_node(self: &Self, ip_address: &str) -> AddResult<Node> {
+    pub fn add_node(
+        self: &Self, 
+        ip_address: &str, 
+        admin_port: PortNumber,
+        pubsub_port: PortNumber,
+        sync_port: PortNumber,
+    ) -> AddResult<Node> {
         let mut node_id: NodeId = 0;
 
         self.update_cluster(|cluster| {
@@ -190,7 +168,7 @@ impl DataLayer {
             cluster.nodes.push(node_id);
         })?;
 
-        let mut node = Node::new(node_id, ip_address);
+        let mut node = Node::new(node_id, ip_address, admin_port, pubsub_port, sync_port);
         match self.persistence.save(&mut node) {
             Ok(_) => AddResult::Ok(node),
             Err(e) => match e {

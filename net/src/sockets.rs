@@ -1,0 +1,4 @@
+/*
+Thin wrapper around sockets implemenation in the standard library.
+Includes thread pooling and scheduling request handling
+*/
