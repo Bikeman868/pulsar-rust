@@ -37,8 +37,12 @@ pub async fn run_test() -> super::Result<()> {
         concurrency
     );
     println!(
-        "Average {} req/sec",
+        "Average throughput {} req/sec",
         ((concurrency * repeat_count) as f32 / (elapsed.as_micros() as f32 / 1000000.0)).floor()
+    );
+    println!(
+        "Average latency {} µs",
+        ((elapsed.as_micros() as f32) / ((concurrency * repeat_count) as f32)).floor()
     );
 
     Ok(())
