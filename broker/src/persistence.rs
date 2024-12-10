@@ -13,16 +13,11 @@ mod file_system;
 mod in_memory;
 
 use serde::{Deserialize, Serialize};
-
-use pulsar_rust_net::data_types::{Timestamp, CatalogId, MessageId, PartitionId, TopicId, VersionNumber};
+use pulsar_rust_net::data_types::{Timestamp, LedgerId, MessageId, PartitionId, TopicId, VersionNumber};
 use self::entity_persister::{DeleteResult, EntityPersister, LoadResult, SaveResult};
 use self::event_logger::{LogDeleteResult,EventLogger, EventQueryOptions, LogEntry, LogResult};
-use crate::{
-    model::{
-        messages::MessageRef,
-    }, 
-    utils::now_epoc_millis
-};
+use crate::model::messages::MessageRef;
+use crate::utils::now_epoc_millis;
 
 pub enum PersistenceScheme {
     InMemory,
@@ -155,25 +150,25 @@ impl PersistenceLayer {
         topic_id.to_string() + ":" + &partition_id.to_string() + ":"
     }
 
-    pub fn build_catalog_prefix(
+    pub fn build_ledger_prefix(
         topic_id: TopicId,
         partition_id: PartitionId,
-        catalog_id: CatalogId,
+        ledger_id: LedgerId,
     ) -> String {
-        topic_id.to_string() + ":" + &partition_id.to_string() + ":" + &catalog_id.to_string() + ":"
+        topic_id.to_string() + ":" + &partition_id.to_string() + ":" + &ledger_id.to_string() + ":"
     }
 
     pub fn build_message_prefix(
         topic_id: TopicId,
         partition_id: PartitionId,
-        catalog_id: CatalogId,
+        ledger_id: LedgerId,
         message_id: MessageId,
     ) -> String {
         topic_id.to_string()
             + ":"
             + &partition_id.to_string()
             + ":"
-            + &catalog_id.to_string()
+            + &ledger_id.to_string()
             + ":"
             + &message_id.to_string()
     }
@@ -205,17 +200,17 @@ impl PersistenceLayer {
             .delete_by_key_prefix(&Self::build_partition_prefix(topic_id, partition_id))
     }
 
-    pub fn delete_events_for_catalog(
+    pub fn delete_events_for_ledger(
         self: &Self,
         topic_id: TopicId,
         partition_id: PartitionId,
-        catalog_id: CatalogId,
+        ledger_id: LedgerId,
     ) -> LogDeleteResult {
         self.event_logger
-            .delete_by_key_prefix(&Self::build_catalog_prefix(
+            .delete_by_key_prefix(&Self::build_ledger_prefix(
                 topic_id,
                 partition_id,
-                catalog_id,
+                ledger_id,
             ))
     }
 
@@ -223,14 +218,14 @@ impl PersistenceLayer {
         self: &Self,
         topic_id: TopicId,
         partition_id: PartitionId,
-        catalog_id: CatalogId,
+        ledger_id: LedgerId,
         message_id: MessageId,
     ) -> LogDeleteResult {
         self.event_logger
             .delete_by_key_prefix(&Self::build_message_prefix(
                 topic_id,
                 partition_id,
-                catalog_id,
+                ledger_id,
                 message_id,
             ))
     }

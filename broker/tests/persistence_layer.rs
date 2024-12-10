@@ -1,14 +1,11 @@
 use pulsar_rust_net::data_types::NodeId;
-use pulsar_rust_broker::{
-    model::messages::MessageRef,
-    persistence::{
-        entity_persister::{LoadError, LoadResult},
-        event_logger::{EventQueryOptions, LogEntry},
-        logged_events::{Ack, Nack, Publish},
-        persisted_entities::Node,
-        Keyed, PersistenceLayer, PersistenceScheme,
-    },
-};
+use pulsar_rust_broker::{model::messages::MessageRef, persistence::{
+    entity_persister::{LoadError, LoadResult},
+    event_logger::{EventQueryOptions, LogEntry},
+    logged_events::{Ack, Nack, Publish},
+    persisted_entities::Node,
+    Keyed, PersistenceLayer, PersistenceScheme,
+}};
 
 #[test]
 fn should_persist_entities_in_memory() {
@@ -52,7 +49,7 @@ fn should_persist_events_in_memory() {
     let message_ref = MessageRef {
         topic_id: 1,
         partition_id: 16,
-        catalog_id: 12,
+        ledger_id: 12,
         message_id: 544,
     };
     persistence
@@ -121,13 +118,13 @@ fn should_selectively_delete_events() {
 
     for topic_id in 1..=3 {
         for partition_id in 1..=3 {
-            for catalog_id in 1..=2 {
+            for ledger_id in 1..=2 {
                 for message_id in 1..=5 {
                     persistence
                         .log(&Publish::new(MessageRef {
                             topic_id: topic_id,
                             partition_id: partition_id,
-                            catalog_id: catalog_id,
+                            ledger_id: ledger_id,
                             message_id: message_id,
                         }))
                         .unwrap();
@@ -137,7 +134,7 @@ fn should_selectively_delete_events() {
                             MessageRef {
                                 topic_id: topic_id,
                                 partition_id: partition_id,
-                                catalog_id: catalog_id,
+                                ledger_id: ledger_id,
                                 message_id: message_id,
                             },
                             1,

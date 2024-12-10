@@ -1,9 +1,6 @@
 use serde::{Deserialize, Serialize};
 use pulsar_rust_net::data_types::{ConsumerId, SubscriptionId};
-use crate::{
-    model::messages::MessageRef,
-    persistence::Keyed,
-};
+use crate::{model::messages::MessageRef, persistence::Keyed};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Ack {

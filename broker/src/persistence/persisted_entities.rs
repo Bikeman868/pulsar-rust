@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use pulsar_rust_net::data_types::{CatalogId, NodeId, PartitionId, PortNumber, SubscriptionId, TopicId, VersionNumber};
+use pulsar_rust_net::data_types::{LedgerId, NodeId, PartitionId, PortNumber, SubscriptionId, TopicId, VersionNumber};
 use crate::persistence::{Keyed, Versioned};
 
 use super::Key;
@@ -14,8 +14,8 @@ use super::Key;
 pub struct Cluster {
     pub version: VersionNumber,
     pub name: String,
-    pub nodes: Vec<NodeId>,
-    pub topics: Vec<TopicId>,
+    pub node_ids: Vec<NodeId>,
+    pub topic_ids: Vec<TopicId>,
     pub next_node_id: NodeId,
     pub next_topic_id: TopicId,
 }
@@ -24,16 +24,16 @@ pub struct Cluster {
 impl Cluster {
     pub fn new(
         name: &str,
-        nodes: Vec<NodeId>,
-        topics: Vec<TopicId>,
+        node_ids: Vec<NodeId>,
+        topic_ids: Vec<TopicId>,
         next_node_id: NodeId,
         next_topic_id: TopicId,
     ) -> Self {
         Self {
             version: 0,
             name: name.to_string(),
-            nodes,
-            topics,
+            node_ids,
+            topic_ids,
             next_node_id,
             next_topic_id,
         }
@@ -62,7 +62,7 @@ impl Versioned for Cluster {
 
 /// Represents a machine in the cluster that runs the application. Each topic/partition
 /// is handled by one node at any point in time, but partitions can transition between nodes
-/// to balance the load. When partitions transition between nodes, a new catalog is created.
+/// to balance the load. When partitions transition between nodes, a new ledger is created.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Node {
     pub version: VersionNumber,
@@ -121,8 +121,8 @@ pub struct Topic {
     pub version: VersionNumber,
     pub topic_id: TopicId,
     pub name: String,
-    pub partitions: Vec<PartitionId>,
-    pub subscriptions: Vec<SubscriptionId>,
+    pub partition_ids: Vec<PartitionId>,
+    pub subscription_ids: Vec<SubscriptionId>,
     pub next_partition_id: PartitionId,
     pub next_subscription_id: SubscriptionId,
 }
@@ -141,8 +141,8 @@ impl Topic {
             version: 0,
             topic_id,
             name,
-            partitions,
-            subscriptions,
+            partition_ids: partitions,
+            subscription_ids: subscriptions,
             next_partition_id,
             next_subscription_id,
         }
@@ -178,19 +178,21 @@ pub struct Partition {
     pub version: VersionNumber,
     pub topic_id: TopicId,
     pub partition_id: PartitionId,
-    pub catalogs: Vec<CatalogId>,
-    pub next_catalog_id: CatalogId,
+    pub ledger_ids: Vec<LedgerId>,
+    pub next_ledger_id: LedgerId,
+    pub node_id: NodeId,
 }
 
 #[rustfmt::skip]
 impl Partition {
-    pub fn new(topic_id: TopicId, partition_id: PartitionId, catalog_ids: Vec<CatalogId>, next_catalog_id: CatalogId) -> Self {
+    pub fn new(topic_id: TopicId, partition_id: PartitionId, ledger_ids: Vec<LedgerId>, next_ledger_id: LedgerId, node_id: NodeId) -> Self {
         Self {
             version: 0,
             partition_id,
             topic_id,
-            catalogs: catalog_ids,
-            next_catalog_id,
+            ledger_ids,
+            next_ledger_id,
+            node_id,
         }
     }
     pub fn key(topic_id: TopicId, partition_id: PartitionId) -> impl Keyed {
@@ -217,58 +219,58 @@ impl Versioned for Partition {
     fn set_version(self: &mut Self, version: VersionNumber) { self.version = version }
 }
 
-/// A catalog is a collection of messages that belong to a partition and a time
-/// interval. When partitions are transitioned to a new node, a new catalog is created.
-/// New catalogs can also be created if we run out of message ids within the catalog.
+/// A ledger is a collection of messages that belong to a partition and a time
+/// interval. When partitions are transitioned to a new node, a new ledger is created.
+/// New ledgers can also be created if we run out of message ids within the ledger.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub struct Catalog {
+pub struct Ledger {
     pub version: VersionNumber,
     pub topic_id: TopicId,
     pub partition_id: PartitionId,
-    pub catalog_id: CatalogId,
+    pub ledger_id: LedgerId,
     pub node_id: NodeId,
 }
 
 #[rustfmt::skip]
-impl Catalog {
+impl Ledger {
     pub fn new(
         topic_id: TopicId,
         partition_id: PartitionId,
-        catalog_id: CatalogId,
+        ledger_id: LedgerId,
         node_id: NodeId,
     ) -> Self {
         Self {
             version: 0,
             topic_id,
             partition_id,
-            catalog_id,
+            ledger_id,
             node_id,
         }
     }
-    pub fn key(topic_id: TopicId, partition_id: PartitionId, catalog_id: CatalogId) -> impl Keyed {
+    pub fn key(topic_id: TopicId, partition_id: PartitionId, ledger_id: LedgerId) -> impl Keyed {
         Key {
-            type_name: <Catalog>::type_name(),
-            key: Catalog::key_from(topic_id, partition_id, catalog_id),
+            type_name: <Ledger>::type_name(),
+            key: Ledger::key_from(topic_id, partition_id, ledger_id),
         }
     }
-    fn type_name() -> &'static str { "Catalog" }
-    fn key_from(topic_id: TopicId, partition_id: PartitionId, catalog_id: CatalogId) -> String { 
+    fn type_name() -> &'static str { "Ledger" }
+    fn key_from(topic_id: TopicId, partition_id: PartitionId, ledger_id: LedgerId) -> String { 
         topic_id.to_string()
             + ":"
             + &partition_id.to_string()
             + ":"
-            + &catalog_id.to_string()
+            + &ledger_id.to_string()
     }
 }
 
 #[rustfmt::skip]
-impl Keyed for Catalog {
-    fn type_name(self: &Self) -> &'static str { Catalog::type_name() }
-    fn key(self: &Self) -> String { Catalog::key_from(self.topic_id, self.partition_id, self.catalog_id) }
+impl Keyed for Ledger {
+    fn type_name(self: &Self) -> &'static str { Ledger::type_name() }
+    fn key(self: &Self) -> String { Ledger::key_from(self.topic_id, self.partition_id, self.ledger_id) }
 }
 
 #[rustfmt::skip]
-impl Versioned for Catalog {
+impl Versioned for Ledger {
     fn version(self: &Self) -> VersionNumber { self.version }
     fn set_version(self: &mut Self, version: VersionNumber) { self.version = version }
 }

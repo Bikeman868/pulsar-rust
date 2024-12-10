@@ -33,3 +33,4 @@ impl ContractSerializer {
         Self::deserialize(buffer)
     } 
 }
+

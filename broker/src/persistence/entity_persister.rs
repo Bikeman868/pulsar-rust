@@ -6,6 +6,7 @@ use super::{file_system, in_memory, Keyed};
 pub enum SaveError {
     Error { msg: String },
     VersionMissmatch,
+    Unmodified,
 }
 
 pub type SaveResult = Result<(), SaveError>;

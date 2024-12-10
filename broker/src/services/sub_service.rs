@@ -8,11 +8,13 @@ use std::sync::Arc;
 use crate::model::cluster::Cluster;
 
 pub struct SubService {
-    cluster: Arc<Cluster>,
+    // cluster: Arc<Cluster>,
 }
 
 impl SubService {
-    pub fn new(cluster: Arc<Cluster>) -> Self {
-        Self { cluster }
+    pub fn new(_cluster: &Arc<Cluster>) -> Self {
+        Self { 
+            // cluster: Arc::clone(cluster),
+        }
     }
 }

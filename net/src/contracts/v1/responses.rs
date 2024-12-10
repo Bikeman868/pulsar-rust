@@ -2,9 +2,11 @@
 Version 1 data contracts for serializing response body
 */
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
-use crate::data_types::{CatalogId, NodeId, PartitionId, PortNumber, TopicId};
+use crate::data_types::{LedgerId, MessageId, NodeId, PartitionId, PortNumber, Timestamp, TopicId};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ClusterSummary {
@@ -31,7 +33,7 @@ pub struct NodeDetail {
     pub admin_port: PortNumber,
     pub pubsub_port: PortNumber,
     pub sync_port: PortNumber,
-    pub catalogs: Vec<CatalogSummary>,
+    pub ledgers: Vec<LedgerSummary>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -42,6 +44,7 @@ pub struct TopicSummary {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TopicDetail {
     pub topic_id: TopicId,
+    pub name: String,
     pub partitions: Vec<PartitionSummary>,
 }
 
@@ -55,23 +58,24 @@ pub struct PartitionSummary {
 pub struct PartitionDetail {
     pub topic_id: TopicId,
     pub partition_id: PartitionId,
-    pub catalogs: Vec<CatalogSummary>,
+    pub ledgers: Vec<LedgerSummary>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct CatalogSummary {
+pub struct LedgerSummary {
     pub topic_id: TopicId,
     pub partition_id: PartitionId,
-    pub catalog_id: CatalogId,
+    pub ledger_id: LedgerId,
     pub node_id: NodeId,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct CatalogDetail {
+pub struct LedgerDetail {
     pub topic_id: TopicId,
     pub partition_id: PartitionId,
-    pub catalog_id: CatalogId,
+    pub ledger_id: LedgerId,
     pub node_id: NodeId,
+    pub next_message_id: MessageId,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -90,6 +94,56 @@ pub struct PartitionList {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct CatalogList {
-    pub catalogs: Vec<CatalogSummary>,
+pub struct TopicPartitionMap {
+    pub topic: TopicSummary,
+    pub partitions: Vec<PartitionDetail>,
+    pub nodes: Vec<NodeDetail>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct LedgerList {
+    pub ledgers: Vec<LedgerSummary>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PublishResult {
+    pub result: PostResult,
+    pub message_ref: Option<MessageRef>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct MessageRef {
+    pub topic_id: TopicId,
+    pub partition_id: PartitionId,
+    pub ledger_id: LedgerId,
+    pub message_id: MessageId,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Message {
+    pub message_ref: MessageRef,
+    pub key: String,
+    pub published: Timestamp,
+    pub attributes: HashMap<String, String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PostResult {
+    pub success: bool,
+    pub error: Option<String>,
+}
+
+impl PostResult {
+    pub fn error(msg: &str) -> Self {
+        Self {
+            success: false,
+            error: Some(msg.to_owned()),
+        }
+    }
+    pub fn success() -> Self {
+        Self {
+            success: true,
+            error: None,
+        }
+    }
 }

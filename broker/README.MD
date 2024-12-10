@@ -36,7 +36,8 @@ Message publication consists of:
 Message consumption consists of:
 - The application constructs a consumer from the client library with the topic name and subscription name
 - The client library establishes a persistent connection to each broker in the cluster registering a consumer for the topic and subscription
-- The broker pushes new message ids to the consumers until the consumer asks it to pause
+- The consumer sets a maximum requests/sec limit and can adjust this later as needed
+- The broker pushes new message ids to the consumers up to the configured max req/sec
 - The client library presents messsage metadata to the application 
 - Message metadata consists of the topic name, partitionid, messageid, custom attributes, retry count, and age of message
 - For messages that the application wants to process, it calls the client library to get the message data
