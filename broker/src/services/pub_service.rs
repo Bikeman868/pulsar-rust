@@ -4,16 +4,21 @@ be layered on top of this service to expose this funtionallity to applicatins.
 */
 
 use std::sync::{Arc, Mutex};
-use pulsar_rust_net::data_types::TopicId;
-use crate::model::{
-    messages::{Message, MessageRef}, 
-    cluster::Cluster, 
-    node::Node, 
-    partition::PartitionList,
-    topic::Topic 
+use pulsar_rust_net::data_types::{Timestamp, TopicId};
+use crate::{
+    model::{
+        cluster::Cluster, 
+        messages::{Message, MessageRef}, 
+        node::Node, 
+        partition::PartitionList, 
+        topic::Topic 
+    }, 
+    persistence::{log_entries::LoggedEvent, logged_events::PublishEvent, PersistenceLayer},
+    utils::now_epoc_millis
 };
 
 pub enum PubError<'a> {
+    Error(String),
     TopicNotFound,
     PartitionNotFound,
     NodeNotFound,
@@ -24,13 +29,20 @@ pub enum PubError<'a> {
 pub type PubResult<'a> = Result<MessageRef, PubError<'a>>;
 
 pub struct PubService {
+    persistence: Arc<PersistenceLayer>,
     cluster: Arc<Cluster>,
     new_ledger_lock: Mutex<()>
 }
 
 impl PubService {
-    pub fn new(cluster: &Arc<Cluster>) -> Self {
-        Self { cluster: Arc::clone(cluster), new_ledger_lock: Mutex::new(()) }
+    pub fn new(
+        persistence: &Arc<PersistenceLayer>, 
+        cluster: &Arc<Cluster>) -> Self {
+        Self { 
+            persistence: Arc::clone(persistence),
+            cluster: Arc::clone(cluster), 
+            new_ledger_lock: Mutex::new(()),
+        }
     }
 
     pub fn topic_by_name<'a>(self: &Self, topic_name: &'a str) -> Option<&Topic> {
@@ -51,7 +63,7 @@ impl PubService {
         Some(self.cluster.topics().by_id(topic_id)?.partitions())
     }
 
-    pub fn publish_message(self: &Self, message: Message) -> PubResult {
+    pub fn publish_message(self: &Self, mut message: Message) -> PubResult {
         let topic = match self.cluster.topics().by_id(message.message_ref.topic_id) {
             Some(topic) => topic,
             None => return PubResult::Err(PubError::TopicNotFound),
@@ -66,7 +78,23 @@ impl PubService {
                     let topic_id = ledger.topic_id();
                     let partition_id = ledger.partition_id();
                     let ledger_id = ledger.ledger_id();
-                    Ok(MessageRef{ topic_id, partition_id, ledger_id, message_id})
+
+                    message.message_ref = MessageRef{ topic_id, partition_id, ledger_id, message_id };
+                    message.subscriber_count = 1; // TODO: Subscribers
+                    message.published = now_epoc_millis();
+                    
+                    if message.timestamp == Timestamp::default() { 
+                        message.timestamp = message.published;
+                    }
+
+                    let message_ref = message.message_ref;
+                    match self.persistence.log_event(&LoggedEvent::Publish(PublishEvent::new(&message))) {
+                        Ok(_) => {
+                            ledger.publish_message(message);
+                            Ok(message_ref)
+                        },
+                        Err(err) => PubResult::Err(PubError::Error(format!("Failed to write publish event to transaction log. {:?}", err))),
+                    }
                 } else {
                     let _lock = self.new_ledger_lock.lock().expect("New ledger lock is poisoned");
                     PubResult::Err(PubError::BacklogCapacityExceeded) // TODO: Create a new ledger if this one is full

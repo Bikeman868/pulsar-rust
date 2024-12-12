@@ -1,14 +1,6 @@
-use serde::Serialize;
 use pulsar_rust_net::data_types::Timestamp;
-use super::{file_system, in_memory, Keyed};
 
-#[derive(Debug)]
-pub struct LogEntry {
-    pub timestamp: Timestamp,
-    pub type_name: String,
-    pub key: String,
-    pub serialization: Option<Vec<u8>>,
-}
+use super::{file_system, in_memory, log_entries::LogEntry};
 
 pub struct EventQueryOptions {
     pub include_serialization: bool,
@@ -60,11 +52,11 @@ pub enum EventLogger {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum LoggingError {
+pub enum LogEventError {
     Error,
 }
 
-pub type LogResult = Result<(), LoggingError>;
+pub type LogEventResult = Result<(), LogEventError>;
 
 /// This is a generic wrapper around the supported event log persistence mechanisms. You can call
 /// methods of this type to persist events and query the event log without knowning how it
@@ -78,9 +70,9 @@ impl EventLogger {
         }
     }
 
-    pub fn log<T: Keyed + Serialize>(self: &Self, event: &T, timestamp: Timestamp) -> LogResult {
+    pub fn log(self: &Self, log_entry: LogEntry) -> LogEventResult {
         match self {
-            EventLogger::InMemory(p) => p.log(event, timestamp),
+            EventLogger::InMemory(p) => p.log(log_entry),
             EventLogger::FileSystem(_) => todo!(),
         }
     }

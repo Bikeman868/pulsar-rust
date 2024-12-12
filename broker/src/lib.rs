@@ -1,5 +1,6 @@
 use std::sync::{atomic::{AtomicBool, AtomicU32}, Arc};
 
+use persistence::PersistenceLayer;
 use services::admin_service::AdminService;
 use services::pub_service::PubService;
 use services::sub_service::SubService;
@@ -13,7 +14,7 @@ pub mod persistence;
 pub mod data;
 
 /// Layer 3
-/// Defines the internal model of the state of the broker
+/// Defines the internal model of the state of the cluster
 pub mod model;
 
 /// Layer 4
@@ -21,7 +22,7 @@ pub mod model;
 pub mod services;
 
 /// Layer 5
-/// Low performance http REST API for managing nodes, topics, subscriptions etc
+/// Low performance http REST API for managing nodes, topics, partitions and subscriptions
 pub mod api_http_warp;
 
 /// Layer 5
@@ -33,6 +34,7 @@ pub mod node_sync;
 
 /// Miscelaneous utility functions
 pub mod utils;
+pub mod collections;
 
 /// Metrics and logging
 pub mod observability;
@@ -40,6 +42,7 @@ pub mod observability;
 pub struct App {
     pub stop_signal: Arc<AtomicBool>,
     pub request_count: Arc<AtomicU32>,
+    pub peristence: Arc<PersistenceLayer>,
     pub pub_service: Arc<PubService>,
     pub sub_service: Arc<SubService>,
     pub admin_service: Arc<AdminService>,

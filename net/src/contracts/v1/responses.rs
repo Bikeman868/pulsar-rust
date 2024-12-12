@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::data_types::{LedgerId, MessageId, NodeId, PartitionId, PortNumber, Timestamp, TopicId};
+use crate::data_types::{ConsumerId, LedgerId, MessageId, NodeId, PartitionId, PortNumber, SubscriptionId, Timestamp, TopicId};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ClusterSummary {
@@ -76,6 +76,9 @@ pub struct LedgerDetail {
     pub ledger_id: LedgerId,
     pub node_id: NodeId,
     pub next_message_id: MessageId,
+    pub message_count: usize,
+    pub create_timestamp: Timestamp,
+    pub last_update_timestamp: Timestamp,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -122,9 +125,50 @@ pub struct MessageRef {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Message {
     pub message_ref: MessageRef,
-    pub key: String,
+    pub message_key: String,
     pub published: Timestamp,
     pub attributes: HashMap<String, String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct LogEntrySummary {
+    pub timestamp: Timestamp,
+    pub event_type: String,
+    pub event_key: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PublishLogEntry {
+    pub message: Message,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct AckLogEntry {
+    pub message_ref: MessageRef,
+    pub subscription_id: SubscriptionId,
+    pub consumer_id: ConsumerId,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct NackLogEntry {
+    pub message_ref: MessageRef,
+    pub subscription_id: SubscriptionId,
+    pub consumer_id: ConsumerId,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum LogEntryDetail {
+    Publish(PublishLogEntry),
+    Ack(AckLogEntry),
+    Nack(NackLogEntry),
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct LogEntry {
+    pub timestamp: Timestamp,
+    pub event_type: String,
+    pub event_key: String,
+    pub details: Option<LogEntryDetail>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

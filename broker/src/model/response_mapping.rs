@@ -5,11 +5,9 @@ Note that the pulsar_rust_net crate always maps requests and responses to the la
 and this source file only has to map the latest version of the contract onto the internal model.
 */
 use pulsar_rust_net::contracts::v1::responses;
+use crate::persistence::{logged_events::{AckEvent, NackEvent, PublishEvent},log_entries::{LogEntry, LoggedEvent}};
 use super::{
-    ledger::{Ledger, LedgerList}, 
-    node::{Node, NodeList}, 
-    partition::{Partition, PartitionList}, 
-    topic::{Topic, TopicList}
+    ledger::{Ledger, LedgerList}, messages::Message, node::{Node, NodeList}, partition::{Partition, PartitionList}, topic::{Topic, TopicList}
 };
 
 impl From<&Node> for responses::NodeSummary {
@@ -90,6 +88,20 @@ impl From<&Ledger> for responses::LedgerDetail {
             ledger_id: ledger.ledger_id(),
             node_id: ledger.node_id(),
             next_message_id: ledger.next_message_id(),
+            message_count: ledger.message_count(),
+            create_timestamp: ledger.create_timestamp(),
+            last_update_timestamp: ledger.last_update_timestamp(),
+        }
+    }
+}
+
+impl From<&Message> for responses::Message {
+    fn from(message: &Message) -> Self {
+        Self {
+            message_ref: message.message_ref.into(),
+            message_key: message.key.clone(),
+            published: message.published,
+            attributes: message.attributes.clone(),
         }
     }
 }
@@ -135,3 +147,68 @@ impl From <&Topic> for responses::TopicPartitionMap {
         }
     }
 }
+
+impl From <&LogEntry> for responses::LogEntrySummary {
+    fn from(entry: &LogEntry) -> Self {
+        Self {
+            timestamp: entry.timestamp,
+            event_type: entry.type_name.clone(),
+            event_key: entry.key.clone(),
+        }
+    }
+}
+
+impl From <&LogEntry> for responses::LogEntry {
+    fn from(entry: &LogEntry) -> Self {
+        let details = match entry.deserialize()
+        {
+            Some(logged_event) => Some(responses::LogEntryDetail::from(&logged_event)),
+            None => None,
+        };
+        Self {
+            timestamp: entry.timestamp,
+            event_type: entry.type_name.clone(),
+            event_key: entry.key.clone(),
+            details,
+        }
+    }
+}
+
+impl From <&LoggedEvent> for responses::LogEntryDetail {
+    fn from(event: &LoggedEvent) -> Self {
+        match event {
+            LoggedEvent::Publish(event) => responses::LogEntryDetail::Publish(responses::PublishLogEntry::from(event)),
+            LoggedEvent::Ack(event) => responses::LogEntryDetail::Ack(responses::AckLogEntry::from(event)),
+            LoggedEvent::Nack(event) => responses::LogEntryDetail::Nack(responses::NackLogEntry::from(event)),
+        }
+    }
+}
+
+impl From <&PublishEvent> for responses::PublishLogEntry {
+    fn from(entry: &PublishEvent) -> Self {
+        Self {
+            message: responses::Message::from(&entry.message),
+        }
+    }
+}
+
+impl From <&AckEvent> for responses::AckLogEntry {
+    fn from(entry: &AckEvent) -> Self {
+        Self {
+            message_ref: responses::MessageRef::from(&entry.message_ref),
+            subscription_id: entry.subscription_id,
+            consumer_id: entry.consumer_id,
+        }
+    }
+}
+
+impl From <&NackEvent> for responses::NackLogEntry {
+    fn from(entry: &NackEvent) -> Self {
+        Self {
+            message_ref: responses::MessageRef::from(&entry.message_ref),
+            subscription_id: entry.subscription_id,
+            consumer_id: entry.consumer_id,
+        }
+    }
+}
+

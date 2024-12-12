@@ -5,17 +5,18 @@ or in a database.
 */
 pub mod entity_persister;
 pub mod persisted_entities;
-
+pub mod log_entries;
 pub mod event_logger;
 pub mod logged_events;
 
 mod file_system;
 mod in_memory;
 
+use log_entries::{LogEntry, LoggedEvent};
 use serde::{Deserialize, Serialize};
 use pulsar_rust_net::data_types::{Timestamp, LedgerId, MessageId, PartitionId, TopicId, VersionNumber};
 use self::entity_persister::{DeleteResult, EntityPersister, LoadResult, SaveResult};
-use self::event_logger::{LogDeleteResult,EventLogger, EventQueryOptions, LogEntry, LogResult};
+use self::event_logger::{LogDeleteResult,EventLogger, EventQueryOptions, LogEventResult};
 use crate::model::messages::MessageRef;
 use crate::utils::now_epoc_millis;
 
@@ -122,16 +123,16 @@ impl PersistenceLayer {
         self.entity_persister.delete(key)
     }
 
-    pub fn log<T: Keyed + Serialize>(self: &Self, event: &T) -> LogResult {
-        self.event_logger.log(event, now_epoc_millis())
+    pub fn log_event(self: &Self, event: &LoggedEvent,) -> LogEventResult {
+        self.event_logger.log(LogEntry::new(event, now_epoc_millis()))
     }
 
-    pub fn log_with_timestamp<T: Keyed + Serialize>(
+    pub fn log_with_timestamp(
         self: &Self,
-        event: &T,
+        event: &LoggedEvent,
         timestamp: Timestamp,
-    ) -> LogResult {
-        self.event_logger.log(event, timestamp)
+    ) -> LogEventResult {
+        self.event_logger.log(LogEntry::new(event, timestamp))
     }
 
     pub fn events_by_key_prefix<'a>(

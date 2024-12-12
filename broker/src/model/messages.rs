@@ -25,13 +25,16 @@ impl MessageRef {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
     pub message_ref: MessageRef,
     pub key: String,
     pub timestamp: Timestamp,
     pub published: Timestamp,
     pub attributes: HashMap<String, String>,
+    pub subscriber_count: usize,
+    pub delivery_count: usize,
+    pub ack_count: usize,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

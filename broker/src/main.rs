@@ -13,7 +13,13 @@ use config::Config;
 use tokio::{task, time};
 
 use pulsar_rust_broker::{
-    api_http_warp, data::DataLayer, model::cluster::{Cluster, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT}, persistence::{PersistenceLayer, PersistenceScheme}, services::{
+    api_http_warp, 
+    data::DataLayer, 
+    model::cluster::{
+        Cluster, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT
+    }, 
+    persistence::{PersistenceLayer, PersistenceScheme}, 
+    services::{
         admin_service::AdminService,
         pub_service::PubService,
         sub_service::SubService,
@@ -94,8 +100,9 @@ async fn main() {
     // The application owns Arcs and the Arcs own the singeltons.
     let app = Arc::new(App {
         stop_signal: Arc::new(AtomicBool::new(false)),
-        request_count: Arc::new(AtomicU32::new(0)),
-        pub_service: Arc::new(PubService::new(&cluster)),
+        request_count: Arc::new(AtomicU32::new(0)), // TODO: metrics module
+        peristence: Arc::clone(&persistence_layer),
+        pub_service: Arc::new(PubService::new(&persistence_layer, &cluster)),
         sub_service: Arc::new(SubService::new(&cluster)),
         admin_service: Arc::new(AdminService::new(&cluster)),
     });

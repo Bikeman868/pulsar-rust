@@ -1,15 +1,7 @@
-use std::{
-    sync::RwLock,
-    time::{Duration, UNIX_EPOCH},
-};
-
-use chrono::{DateTime, Utc};
-use rmp_serde::Serializer;
-use serde::Serialize;
+use std::sync::RwLock;
 use pulsar_rust_net::data_types::Timestamp;
 use crate::persistence::{
-    event_logger::{EventQueryOptions, LogDeleteResult, LogEntry, LogResult},
-    Keyed,
+    event_logger::{EventQueryOptions, LogDeleteResult, LogEventResult}, log_entries::LogEntry,
 };
 
 pub struct EventLogger {
@@ -29,24 +21,7 @@ impl EventLogger {
         println!("Event log cleared");
     }
 
-    pub fn log<T: Keyed + Serialize>(self: &Self, event: &T, timestamp: Timestamp) -> LogResult {
-        let mut buffer = Vec::new();
-        let mut serializer = Serializer::new(&mut buffer);
-        event.serialize(&mut serializer).unwrap();
-
-        let type_name = event.type_name().to_owned();
-        let key = event.key();
-        let system_time = UNIX_EPOCH + Duration::from_millis(timestamp);
-        let date_time: DateTime<Utc> = system_time.into();
-        println!("EVENT {date_time} {type_name}:{key} => {buffer:?}");
-
-        let log_entry = LogEntry {
-            timestamp: timestamp.clone(),
-            type_name,
-            key,
-            serialization: Some(buffer),
-        };
-
+    pub fn log(self: &Self, log_entry: LogEntry) -> LogEventResult {
         self.entries.write().unwrap().push(log_entry);
         Result::Ok(())
     }

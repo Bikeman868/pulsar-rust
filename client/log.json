@@ -1,0 +1,42 @@
+[
+  {
+    "timestamp": 1733894818793,
+    "event_type": "Publish",
+    "key": "1:1:1:2",
+    "details": {
+      "Publish": {
+        "message": {
+          "message_ref": {
+            "topic_id": 1,
+            "partition_id": 1,
+            "ledger_id": 1,
+            "message_id": 1
+          },
+          "key": "",
+          "published": 0,
+          "attributes": {}
+        }
+      }
+    }
+  },
+  {
+    "timestamp": 1733894817082,
+    "event_type": "Publish",
+    "key": "1:1:1:1",
+    "details": {
+      "Publish": {
+        "message": {
+          "message_ref": {
+            "topic_id": 1,
+            "partition_id": 1,
+            "ledger_id": 1,
+            "message_id": 1
+          },
+          "key": "",
+          "published": 0,
+          "attributes": {}
+        }
+      }
+    }
+  }
+]

@@ -5,13 +5,21 @@ over a persistent connection. This http based API is provided for compatibility 
 variaty of other tools and technologies. For high performance applications, use the Rust client.
 */
 
+use std::{
+    convert::Infallible, 
+    future::Future, 
+    net::SocketAddrV4, 
+    sync::{atomic::Ordering, Arc}
+};
+use warp::{
+    Filter, Rejection, Reply
+};
 use crate::App;
-use std::{convert::Infallible, future::Future, net::SocketAddrV4, sync::{atomic::Ordering, Arc}};
-use warp::{Filter, Rejection, Reply};
 
 mod admin;
 mod docs;
 mod pubsub;
+mod logs;
 
 fn with_app<'a>(app: &Arc<App>) -> impl Filter<Extract = (Arc<App>,), Error = Infallible> + Clone {
     let app = Arc::clone(app);
@@ -22,10 +30,12 @@ fn with_app<'a>(app: &Arc<App>) -> impl Filter<Extract = (Arc<App>,), Error = In
     })
 }
 
+#[rustfmt::skip]
 pub fn routes(app: &Arc<App>) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    pubsub::routes(app)
-        .or(admin::routes(app))
-        .or(docs::routes())
+        pubsub::routes(app)
+    .or(admin::routes(app))
+    .or(logs::routes(app))
+    .or(docs::routes())
 }
 
 pub fn serve(app: &Arc<App>, addr: SocketAddrV4) -> impl Future<Output = ()> {

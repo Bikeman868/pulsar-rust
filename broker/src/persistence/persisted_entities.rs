@@ -6,7 +6,6 @@ use crate::persistence::{Keyed, Versioned};
 use super::Key;
 
 // TODO: Write a macro to generate entities
-// =====
 
 /// Represents a collection of machines that collborate in serving broker functionality. There is
 /// only one cluster record in the database.

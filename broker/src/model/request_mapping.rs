@@ -28,6 +28,9 @@ impl Into<super::messages::Message> for requests::Message {
             timestamp: match self.timestamp { Some(epoch_time) => epoch_time, None => now_epoc_millis() }, 
             published: Timestamp::default(),
             attributes: self.attributes.clone(),
+            subscriber_count: usize::default(),
+            delivery_count: usize::default(),
+            ack_count: usize::default(),
         }
     }
 }

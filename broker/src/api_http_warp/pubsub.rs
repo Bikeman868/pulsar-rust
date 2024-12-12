@@ -29,6 +29,7 @@ async fn publish_message(message: requests::Message, app: Arc<App>) ->  Result<i
         })),
         Err(err) => {
             let error = match err {
+                PubError::Error(msg) => &msg.clone(),
                 PubError::TopicNotFound => "No topic with this ID",
                 PubError::PartitionNotFound => "No partition with this ID",
                 PubError::NodeNotFound => "No node with this ID",

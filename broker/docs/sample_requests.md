@@ -14,9 +14,35 @@ curl http://localhost:8000/v1/admin/topic/1/partitions -i
 
 curl http://localhost:8000/v1/admin/topic/1/partition/1 -i
 
+curl http://localhost:8000/v1/admin/topic/1/subscriptions -i
+
+curl http://localhost:8000/v1/admin/topic/1/subscription/1 -i
+
+## Getting information about message processing
+
 curl http://localhost:8000/v1/admin/topic/1/partition/1/ledgers -i
 
 curl http://localhost:8000/v1/admin/topic/1/partition/1/ledger/1 -i
+
+curl http://localhost:8000/v1/admin/topic/1/partition/1/ledger/1/messageids -i
+
+curl http://localhost:8000/v1/admin/topic/1/partition/1/ledger/1/message/1 -i
+
+curl http://localhost:8000/v1/admin/topic/1/subscription/1/messageids -i
+
+curl http://localhost:8000/v1/admin/topic/1/subscription/1/message/1 -i
+
+## Querying the transaction log
+
+curl "http://localhost:8000/v1/logs?limit=100" -i
+
+curl "http://localhost:8000/v1/logs/topic/1?limit=100" -i
+
+curl "http://localhost:8000/v1/logs/topic/1/partition/1?limit=100" -i
+
+curl "http://localhost:8000/v1/logs/topic/1/partition/1/ledger/1?limit=100" -i
+
+curl "http://localhost:8000/v1/logs/topic/1/partition/1/ledger/1/message/1?limit=100&detailed=true" -i
 
 ## Publishing messages
 
@@ -30,3 +56,14 @@ curl http://localhost:8000/v1/pub/message -X POST -H "Content-Type: application/
 curl http://localhost:8000/v1/pub/message -X POST -H "Content-Type: application/json" -i \
   --data '{"topic_id":1, "partition_id":1, "attributes":{"message-url":"http://s3-us-east-1.amazonaws.com/messages/order-placed/4765e479-aaf8-4901-b1ef-be6cdbdff384"}}'
 
+## Subscribing to messages
+
+curl http://localhost:8000/v1/sub/ping -i
+
+curl http://localhost:8000/v1/sub/nodes -i
+
+curl http://localhost:8000/v1/sub/topic/1/messages?consumer_id=0553b3e9-8c2c-4a5f-a9a5-4d6eede1e47f&limit=10 -i
+
+curl http://localhost:8000/v1/sub/ack -X POST -H "Content-Type: application/json" -i --data '{"topic_id":1, "partition_id":1, "ledger_id":1, "subscription_id":1, "consumer_id":"0553b3e9-8c2c-4a5f-a9a5-4d6eede1e47f", "message_ids":[1,2,3] }'
+
+curl http://localhost:8000/v1/sub/nack -X POST -H "Content-Type: application/json" -i --data '{"topic_id":1, "partition_id":1, "ledger_id":1, "subscription_id":1, "consumer_id":"0553b3e9-8c2c-4a5f-a9a5-4d6eede1e47f", "message_ids":[4,5] }'

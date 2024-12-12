@@ -3,13 +3,17 @@ use std::{
     sync::{Arc, RwLock}
 };
 use pulsar_rust_net::data_types::{
-    LedgerId, MessageId, NodeId, PartitionId, TopicId,
+    LedgerId, MessageId, NodeId, PartitionId, Timestamp, TopicId
 };
-use crate::data::DataLayer;
+use crate::{data::DataLayer, utils::now_epoc_millis};
+
+use super::messages::Message;
 
 #[derive(Debug)]
 struct MutableState {
     next_message_id: MessageId,
+    messages: HashMap<MessageId, Message>,
+    last_update_timestamp: Timestamp,
 }
 
 #[derive(Debug)]
@@ -19,6 +23,7 @@ pub struct Ledger {
     partition_id: PartitionId,
     ledger_id: LedgerId,
     node_id: NodeId,
+    create_timestamp: Timestamp,
 }
 
 impl Ledger {
@@ -27,6 +32,17 @@ impl Ledger {
     pub fn ledger_id(self: &Self) -> LedgerId { self.ledger_id }
     pub fn node_id(self: &Self) -> NodeId { self.node_id }
     pub fn next_message_id(self: &Self) -> MessageId { self.mutable.read().unwrap().next_message_id }
+    pub fn create_timestamp(self: &Self) -> Timestamp { self.create_timestamp }
+    pub fn message_count(self: &Self) -> usize { self.mutable.read().unwrap().messages.len() }
+    pub fn last_update_timestamp(self: &Self) -> Timestamp { self.mutable.read().unwrap().last_update_timestamp }
+
+    pub fn peek_message(self: &Self, message_id: MessageId) -> Option<Message> {
+        Some(self.mutable.read().unwrap().messages.get(&message_id)?.clone())
+    }
+
+    pub fn all_message_ids(self: &Self) -> Vec<MessageId> {
+        self.mutable.read().unwrap().messages.keys().map(|k|*k).collect()
+    }
 
     pub fn new(
         data_layer: &Arc<DataLayer>,
@@ -40,17 +56,22 @@ impl Ledger {
             .unwrap();
 
         let node_id = ledger.node_id;
+        let messages: HashMap<MessageId, Message> = HashMap::with_capacity(10000);
+        let timestamp = now_epoc_millis();
 
         Self {
             mutable: RwLock::new(
                 MutableState {
-                    next_message_id
+                    next_message_id,
+                    messages,
+                    last_update_timestamp: timestamp,
                 }
             ),
             topic_id,
             partition_id,
             ledger_id,
             node_id,
+            create_timestamp: timestamp,
         }
     }
 
@@ -62,9 +83,40 @@ impl Ledger {
 
         let id = mutable_state.next_message_id;
         mutable_state.next_message_id = if id == MessageId::MAX { 0 } else { id + 1 };
+        mutable_state.last_update_timestamp = now_epoc_millis();
 
         Some(id)
     }
+
+    pub fn publish_message(self: &Self, message: Message) {
+        let mutable_state: &mut MutableState = &mut *self.mutable.write().unwrap();
+        mutable_state.messages.insert(message.message_ref.message_id, message);
+        mutable_state.last_update_timestamp = now_epoc_millis();
+    }
+
+    pub fn get_message(self: &Self, message_id: &MessageId) -> Option<Box<Message>> {
+        let mutable_state = self.mutable.read().unwrap();
+        Some(Box::new(Message::clone(mutable_state.messages.get(message_id)?)))
+    }
+
+    pub fn ack_message(self: &Self, message_id: &MessageId) {
+        let mutable_state: &mut MutableState = &mut *self.mutable.write().unwrap();
+        let messages = &mut mutable_state.messages;
+
+        match messages.get_mut(message_id) {
+            Some(message) => {
+                message.ack_count += 1;
+                if message.ack_count == message.subscriber_count {
+                    messages.remove(message_id);
+                }
+                mutable_state.last_update_timestamp = now_epoc_millis();
+            }
+            // TODO: Log a warning, this should not happen because acked messages are removed from the subscription
+            // and this struct should never see double acks.
+            None => ()
+        }
+    }
+
 }
 
 #[derive(Debug)]
