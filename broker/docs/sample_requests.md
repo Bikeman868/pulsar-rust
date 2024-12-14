@@ -50,6 +50,10 @@ curl "http://localhost:8000/v1/logs?detailed=true" -H "Accept: text/plain"
 
 curl "http://localhost:8000/v1/logs?detailed=true" -H "Accept: text/html"
 
+curl "http://localhost:8000/v1/logs?detailed=true" -H "Accept: text/plain"
+
+curl "http://localhost:8000/v1/logs?detailed=true" -H "Accept: text/html"
+
 ## Publishing messages
 
 curl http://localhost:8000/v1/pub/ping -i
