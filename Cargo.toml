@@ -23,3 +23,4 @@ tokio = { version = "*", features = ["macros", "rt-multi-thread"] }
 warp = { version = "*" }
 ctrlc = { version = "*" }
 bytes = { version = "*" }
+statsd = { version = "*" }

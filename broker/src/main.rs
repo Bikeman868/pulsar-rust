@@ -11,15 +11,10 @@ use std::{
 };
 use config::Config;
 use tokio::{task, time};
-
 use pulsar_rust_broker::{
-    api_http_warp, 
-    data::DataLayer, 
-    model::cluster::{
+    api_http_warp, data::DataLayer, model::cluster::{
         Cluster, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT
-    }, 
-    persistence::{PersistenceLayer, PersistenceScheme}, 
-    services::{
+    }, observability::Metrics, persistence::{PersistenceLayer, PersistenceScheme}, services::{
         admin_service::AdminService,
         pub_service::PubService,
         sub_service::SubService,
@@ -100,7 +95,7 @@ async fn main() {
     // The application owns Arcs and the Arcs own the singeltons.
     let app = Arc::new(App {
         stop_signal: Arc::new(AtomicBool::new(false)),
-        request_count: Arc::new(AtomicU32::new(0)), // TODO: metrics module
+        metrics: Arc::new(Metrics::new()),
         peristence: Arc::clone(&persistence_layer),
         pub_service: Arc::new(PubService::new(&persistence_layer, &cluster)),
         sub_service: Arc::new(SubService::new(&cluster)),
@@ -110,26 +105,20 @@ async fn main() {
     // Handle SIGTERM by setting the stop_signal boolean
     let stop_signal = app.stop_signal.clone();
     ctrlc::set_handler(move || stop_signal.store(true, Ordering::Relaxed)).unwrap();
-    
-    // Debug - print metrics to stdout at regular intervals
-    task::spawn(print_metrics(Arc::clone(&app)));
 
-    let my_node = cluster.my_node();
+    // Start sending metrics to StatsD
+    task::spawn(send_metrics(Arc::clone(&app)));
     
+    // Construct endpoints to listen on
+    let my_node = cluster.my_node();
     let admin_endpoint = SocketAddrV4::new(
         Ipv4Addr::from_str(&my_node.ip_address()).expect(&format!("Failed to parse {} as an IPv4 address", my_node.ip_address())), 
         my_node.admin_port());
 
+    // Block the main thread until the Http server stops running
     api_http_warp::serve(&app, admin_endpoint).await;
 }
 
-async fn print_metrics(app: Arc<App>) {
-    let stop_signal = app.stop_signal.clone();
-    while !stop_signal.load(Ordering::Relaxed) {
-        println!(
-            "{} requests",
-            app.clone().request_count.clone().swap(0, Ordering::Relaxed)
-        );
-        time::sleep(Duration::from_millis(1000)).await;
-    }
+async fn send_metrics(app: Arc<App>) {
+    app.metrics.run(&app.stop_signal).await;
 }

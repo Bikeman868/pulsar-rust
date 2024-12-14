@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use warp::{get, post, path, reply, body, Filter, Rejection, Reply};
 use pulsar_rust_net::contracts::v1::{requests, responses};
-use crate::{services::pub_service::PubError, App};
+use crate::{observability::Metrics, services::pub_service::PubError, App};
 use super::with_app;
 
 type TopicName = String;
@@ -10,6 +10,7 @@ async fn get_partitions_by_topic_name(
     topic_name: String,
     app: Arc<App>,
 ) -> Result<impl Reply, Rejection> {
+    app.metrics.incr(Metrics::METRIC_HTTP_PUB_MAPPING_COUNT);
     match app.pub_service.topic_by_name(&topic_name) {
         Some(topic) => {
             let mut map = responses::TopicPartitionMap::from(topic);
@@ -22,6 +23,7 @@ async fn get_partitions_by_topic_name(
 }
 
 async fn publish_message(message: requests::Message, app: Arc<App>) ->  Result<impl Reply, Rejection> {
+    app.metrics.incr(Metrics::METRIC_HTTP_PUB_MESSAGE_COUNT);
     match app.pub_service.publish_message(message.into()) {
         Ok(message_ref) => Ok(reply::json(&responses::PublishResult{
             result: responses::PostResult::success(),
@@ -44,7 +46,8 @@ async fn publish_message(message: requests::Message, app: Arc<App>) ->  Result<i
     }
 }
 
-async fn ping(_app: Arc<App>) -> Result<impl Reply, Rejection> {
+async fn ping(app: Arc<App>) -> Result<impl Reply, Rejection> {
+    app.metrics.incr(Metrics::METRIC_HTTP_PUB_PING_COUNT);
     Ok(reply::html("pong"))
 }
 

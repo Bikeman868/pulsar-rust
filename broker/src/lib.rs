@@ -1,9 +1,14 @@
 use std::sync::{atomic::{AtomicBool, AtomicU32}, Arc};
 
+use observability::Metrics;
 use persistence::PersistenceLayer;
 use services::admin_service::AdminService;
 use services::pub_service::PubService;
 use services::sub_service::SubService;
+
+/// This module is updated with a randomly generated build number automatically on each build
+/// The build number is used as a version identifier
+pub mod build_number;
 
 /// Layer 1
 /// Implemenations of various persistence schemes, for example in memory, file system or database
@@ -32,18 +37,17 @@ pub mod api_bin_sockets;
 /// Socket communications between nodes to keep the cluster in sync
 pub mod node_sync;
 
-/// Miscelaneous utility functions
+/// Miscelaneous
 mod utils;
 // mod collections;
 mod html_builder;
-pub mod build_number;
 
 /// Metrics and logging
 pub mod observability;
 
 pub struct App {
     pub stop_signal: Arc<AtomicBool>,
-    pub request_count: Arc<AtomicU32>,
+    pub metrics: Arc<Metrics>,
     pub peristence: Arc<PersistenceLayer>,
     pub pub_service: Arc<PubService>,
     pub sub_service: Arc<SubService>,

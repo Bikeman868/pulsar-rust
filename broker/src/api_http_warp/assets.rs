@@ -4,7 +4,6 @@ use crate::App;
 use super::with_app;
 
 async fn css(name: String, _app: Arc<App>) -> Result<impl Reply, Rejection> {
-    println!("Request for '{name}' CSS");
     if name.contains(|c| c == '\\' || c == ':') {
         Ok(Response::builder()
            .status(StatusCode::BAD_REQUEST)

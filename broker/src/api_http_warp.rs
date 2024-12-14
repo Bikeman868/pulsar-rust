@@ -14,7 +14,10 @@ use std::{
 use warp::{
     Filter, Rejection, Reply
 };
-use crate::App;
+use crate::{
+    App,
+    observability::Metrics
+};
 
 mod admin;
 mod docs;
@@ -27,7 +30,6 @@ fn with_app<'a>(app: &Arc<App>) -> impl Filter<Extract = (Arc<App>,), Error = In
     let app = Arc::clone(app);
     warp::any().map(move || {
         let app = &app;
-        app.request_count.fetch_add(1, Ordering::Relaxed);
         Arc::clone(app)
     })
 }
