@@ -1,0 +1,88 @@
+body.log-entries {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+    background-color: #f9f9f9;
+    color: #333;
+  }
+  
+  .page-title {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: #2c3e50;
+  }
+  
+  .log-entries {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .log-entry {
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .log-entry .event-timestamp,
+  .log-entry .event-type,
+  .log-entry .event-key,
+  .log-entry .message {
+    margin-bottom: 15px;
+  }
+  
+  .label {
+    font-weight: bold;
+    color: #555;
+  }
+  
+  .field {
+    display: inline-block;
+    padding: 5px 10px;
+    background: #f4f4f4;
+    border-radius: 4px;
+    color: #2c3e50;
+  }
+  
+  .message {
+    border-top: 1px solid #e0e0e0;
+    padding-top: 15px;
+  }
+  
+  .message-metadata {
+    margin-bottom: 10px;
+  }
+  
+  .message-ref {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+  
+  .message-ref > div {
+    flex: 1 1 150px;
+  }
+  
+  .message-attribute {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 10px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background-color: #fefefe;
+    margin-bottom: 5px;
+  }
+  
+  .message-attribute__name {
+    font-weight: bold;
+  }
+  
+  .message-attribute__value {
+    color: #2c3e50;
+  }
+  

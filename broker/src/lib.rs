@@ -33,8 +33,10 @@ pub mod api_bin_sockets;
 pub mod node_sync;
 
 /// Miscelaneous utility functions
-pub mod utils;
-pub mod collections;
+mod utils;
+// mod collections;
+mod html_builder;
+pub mod build_number;
 
 /// Metrics and logging
 pub mod observability;

@@ -20,6 +20,8 @@ mod admin;
 mod docs;
 mod pubsub;
 mod logs;
+mod html;
+mod assets;
 
 fn with_app<'a>(app: &Arc<App>) -> impl Filter<Extract = (Arc<App>,), Error = Infallible> + Clone {
     let app = Arc::clone(app);
@@ -33,8 +35,10 @@ fn with_app<'a>(app: &Arc<App>) -> impl Filter<Extract = (Arc<App>,), Error = In
 #[rustfmt::skip]
 pub fn routes(app: &Arc<App>) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
         pubsub::routes(app)
+    .or(assets::routes(app))
     .or(admin::routes(app))
     .or(logs::routes(app))
+    .or(assets::routes(app))
     .or(docs::routes())
 }
 

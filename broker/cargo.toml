@@ -12,5 +12,9 @@ chrono.workspace = true
 tokio.workspace = true
 warp.workspace = true
 ctrlc.workspace = true
+
 hyper = { version = "*", features = ["http1", "server"] }
 pulsar_rust_net = { path = "../net" }
+
+[build-dependencies]
+uuid = { version = "*", features = ["v4"] }

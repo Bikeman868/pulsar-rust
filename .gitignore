@@ -1,2 +1,4 @@
 **/target/*
 .DS_Store
+
+/broker/src/build_number.rs

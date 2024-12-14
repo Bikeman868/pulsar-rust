@@ -34,15 +34,21 @@ curl http://localhost:8000/v1/admin/topic/1/subscription/1/message/1 -i
 
 ## Querying the transaction log
 
-curl "http://localhost:8000/v1/logs?limit=100" -i
+Note that any of these URLs can be copied into a browser address bar.
 
-curl "http://localhost:8000/v1/logs/topic/1?limit=100" -i
+curl "http://localhost:8000/v1/logs?limit=100"
 
-curl "http://localhost:8000/v1/logs/topic/1/partition/1?limit=100" -i
+curl "http://localhost:8000/v1/logs/topic/1?limit=10"
 
-curl "http://localhost:8000/v1/logs/topic/1/partition/1/ledger/1?limit=100" -i
+curl "http://localhost:8000/v1/logs/topic/1/partition/1"
 
-curl "http://localhost:8000/v1/logs/topic/1/partition/1/ledger/1/message/1?limit=100&detailed=true" -i
+curl "http://localhost:8000/v1/logs/topic/1/partition/1/ledger/1"
+
+curl "http://localhost:8000/v1/logs/topic/1/partition/1/ledger/1/message/1?detailed=true"
+
+curl "http://localhost:8000/v1/logs?detailed=true" -H "Accept: text/plain"
+
+curl "http://localhost:8000/v1/logs?detailed=true" -H "Accept: text/html"
 
 ## Publishing messages
 

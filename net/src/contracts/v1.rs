@@ -4,7 +4,7 @@ use crate::contracts::v1;
 
 pub mod requests;
 pub mod responses;
-
+pub mod plain_text;
 pub struct ContractSerializer {}
 
 impl ContractSerializer {

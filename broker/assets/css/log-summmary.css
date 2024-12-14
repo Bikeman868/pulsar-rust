@@ -1,0 +1,62 @@
+body.log-entries {
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+    margin: 0;
+    padding: 10px;
+    background-color: #f9f9f9;
+    color: #333;
+  }
+  
+  .page-title {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: #2c3e50;
+  }
+  
+  .log-entries {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .log-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #ffffff;
+  }
+  
+  .log-entry > div {
+    margin: 0 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .event-timestamp,
+  .event-type,
+  .event-key {
+    font-size: 12px;
+  }
+  
+  .label {
+    font-weight: bold;
+    color: #666;
+  }
+  
+  .field {
+    color: #2c3e50;
+  }
+  
+  .event-type {
+    font-weight: bold;
+    text-transform: uppercase;
+    color: #007acc;
+    align-self: center;
+  }
+  

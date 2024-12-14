@@ -1,0 +1,5 @@
+/* Relaxed layout for lots of open space making the page more readable */
+
+div {
+    padding: 5px;
+}
