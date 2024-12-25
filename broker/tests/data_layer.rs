@@ -1,5 +1,3 @@
-use std::sync::Arc;
-use pulsar_rust_net::data_types::NodeId;
 use pulsar_rust_broker::{
     data::{DataLayer, DataReadError},
     persistence::{
@@ -8,6 +6,8 @@ use pulsar_rust_broker::{
         PersistenceLayer, PersistenceScheme,
     },
 };
+use pulsar_rust_net::data_types::NodeId;
+use std::sync::Arc;
 
 #[test]
 fn should_persist_data_in_memory() {
@@ -20,12 +20,14 @@ fn should_persist_data_in_memory() {
     let saved_node = data_layer.add_node("127.0.0.1", 8000, 8001, 8002).unwrap();
 
     let saved_topic1 = data_layer.add_topic("topic1").unwrap();
-    let saved_partition1 = data_layer.add_partition(saved_topic1.topic_id, saved_node.node_id).unwrap();
-    data_layer
-        .add_subscription(saved_topic1.topic_id, "subscription1")
+    let saved_partition1 = data_layer
+        .add_partition(saved_topic1.topic_id, saved_node.node_id)
         .unwrap();
     data_layer
-        .add_subscription(saved_topic1.topic_id, "subscription2")
+        .add_subscription(saved_topic1.topic_id, "subscription1", false)
+        .unwrap();
+    data_layer
+        .add_subscription(saved_topic1.topic_id, "subscription2", false)
         .unwrap();
     data_layer
         .add_ledger(
@@ -43,12 +45,14 @@ fn should_persist_data_in_memory() {
         .unwrap();
 
     let saved_topic2 = data_layer.add_topic("topic2").unwrap();
-    let saved_partition2 = data_layer.add_partition(saved_topic2.topic_id, saved_node.node_id).unwrap();
-    data_layer
-        .add_subscription(saved_topic2.topic_id, "subscription1")
+    let saved_partition2 = data_layer
+        .add_partition(saved_topic2.topic_id, saved_node.node_id)
         .unwrap();
     data_layer
-        .add_subscription(saved_topic2.topic_id, "subscription2")
+        .add_subscription(saved_topic2.topic_id, "subscription1", false)
+        .unwrap();
+    data_layer
+        .add_subscription(saved_topic2.topic_id, "subscription2", false)
         .unwrap();
     data_layer
         .add_ledger(
@@ -157,10 +161,10 @@ fn should_cascade_delete_topic() {
     let topic1 = data_layer.add_topic("topic1").unwrap();
     let topic1_partition1 = data_layer.add_partition(topic1.topic_id, node_id).unwrap();
     data_layer
-        .add_subscription(topic1.topic_id, "subscription1")
+        .add_subscription(topic1.topic_id, "subscription1", false)
         .unwrap();
     data_layer
-        .add_subscription(topic1.topic_id, "subscription2")
+        .add_subscription(topic1.topic_id, "subscription2", false)
         .unwrap();
     data_layer
         .add_ledger(
@@ -180,10 +184,10 @@ fn should_cascade_delete_topic() {
     let topic2 = data_layer.add_topic("topic2").unwrap();
     let topic2_partition2 = data_layer.add_partition(topic2.topic_id, node_id).unwrap();
     data_layer
-        .add_subscription(topic2.topic_id, "subscription1")
+        .add_subscription(topic2.topic_id, "subscription1", false)
         .unwrap();
     data_layer
-        .add_subscription(topic2.topic_id, "subscription2")
+        .add_subscription(topic2.topic_id, "subscription2", false)
         .unwrap();
     data_layer
         .add_ledger(

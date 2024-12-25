@@ -1,5 +1,5 @@
-use std::cell::RefCell;
 use crate::build_number::BUILD_NUMBER;
+use std::cell::RefCell;
 
 pub trait ToHtml<T> {
     fn to_html(self: &Self, w: &HtmlBuilder<T>);
@@ -19,9 +19,11 @@ pub struct HtmlBuilder<T> {
 impl<TDoc> HtmlBuilder<TDoc> {
     fn write(self: &Self, str: &str) {
         let mut mutable = self.mutable.borrow_mut();
-        if mutable.line_break { 
+        if mutable.line_break {
             mutable.buffer.push('\n');
-            for _ in 0..mutable.indent { mutable.buffer.push_str("  ") };
+            for _ in 0..mutable.indent {
+                mutable.buffer.push_str("  ")
+            }
             mutable.line_break = false;
         }
         mutable.buffer.push_str(str);
@@ -59,10 +61,10 @@ impl<TDoc> HtmlBuilder<TDoc> {
     #[inline]
     fn line_break(self: &Self) {}
 
-    pub fn new (document: TDoc) -> Self {
-        Self { 
+    pub fn new(document: TDoc) -> Self {
+        Self {
             document,
-            mutable: RefCell::new(HtmlBuilderMutableState{
+            mutable: RefCell::new(HtmlBuilderMutableState {
                 buffer: String::with_capacity(4096),
                 indent: 0,
                 line_break: false,
@@ -70,9 +72,13 @@ impl<TDoc> HtmlBuilder<TDoc> {
         }
     }
 
-    pub fn build(self: Self) -> String { self.mutable.into_inner().buffer }
+    pub fn build(self: Self) -> String {
+        self.mutable.into_inner().buffer
+    }
 
-    pub fn text(self: &Self, text: &str) { self.write(text) }
+    pub fn text(self: &Self, text: &str) {
+        self.write(text)
+    }
 
     pub fn html(self: &Self, f: fn(&Self, &TDoc)) {
         self.write("<!DOCTYPE html><html>");
@@ -126,7 +132,7 @@ impl<TDoc> HtmlBuilder<TDoc> {
         self.write("</h1>");
     }
 
-    pub fn h2(self: &Self, class: &str, text: &str) {
+    pub fn _h2(self: &Self, class: &str, text: &str) {
         if class.len() > 0 {
             self.write("<h2 class='");
             self.write(class);
@@ -138,7 +144,7 @@ impl<TDoc> HtmlBuilder<TDoc> {
         self.write("</h2>");
     }
 
-    pub fn h3(self: &Self, class: &str, text: &str) {
+    pub fn _h3(self: &Self, class: &str, text: &str) {
         if class.len() > 0 {
             self.write("<h3 class='");
             self.write(class);
@@ -179,23 +185,21 @@ mod tests {
     #[test]
     fn should_render_html() {
         let writer = HtmlBuilder::new(());
-        writer.html(|w,_| {
-            w.head("Hello", |_,_|());
-            w.body("log", |w,_|{
-                w.span(&(), "id", |w,_,_|{
-                    w.text("Hello")
-                })
-            })
+        writer.html(|w, _| {
+            w.head("Hello", |_, _| ());
+            w.body("log", |w, _| w.span(&(), "id", |w, _, _| w.text("Hello")))
         });
         let html = writer.build();
-        assert_eq!(html, 
-"<!DOCTYPE html><html>
+        assert_eq!(
+            html,
+            "<!DOCTYPE html><html>
   <head>
     <title>Hello</title>
   </head>
   <body class='log'>
     <span class='id'>Hello</span>
   </body>
-</html>")
+</html>"
+        )
     }
 }

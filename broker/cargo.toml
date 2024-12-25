@@ -13,6 +13,8 @@ tokio.workspace = true
 warp.workspace = true
 ctrlc.workspace = true
 statsd.workspace = true
+regex.workspace = true
+lazy_static.workspace = true
 
 hyper = { version = "*", features = ["http1", "server"] }
 pulsar_rust_net = { path = "../net" }

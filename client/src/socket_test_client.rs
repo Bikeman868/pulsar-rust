@@ -1,38 +1,50 @@
 use std::{
-    io::{BufRead, BufReader, BufWriter, Write}, 
-    net::TcpStream, 
-    thread::{self, available_parallelism}, 
+    io::{BufRead, BufReader, BufWriter, Write},
+    net::TcpStream,
+    thread::{self, available_parallelism},
     time::Instant,
 };
 
 pub async fn run_test() -> super::Result<()> {
     let authority = "localhost:8000";
-    let path = "/v1/admin/nodes";
-    let repeat_count: usize = 100000;
-    let concurrency = available_parallelism().expect("Can't get the number of CPUs").get();
-
-    let request_text = format!("GET {} HTTP/1.1\r\nHost: {}\r\nConnection: keep-alive\r\n\r\n", path, authority);
+    let repeat_count: usize = 10000;
+    let concurrency = available_parallelism()
+        .expect("Can't get the number of CPUs")
+        .get();
 
     let start = Instant::now();
 
-    let mut threads: Vec<thread::JoinHandle<()>> = Vec::with_capacity(concurrency);
+    let mut threads: Vec<thread::JoinHandle<()>> = Vec::with_capacity(concurrency * 2);
     for index in 0..concurrency {
         let thread_id = index + 1;
-        let request = request_text.clone();
-        let worker = thread::Builder::new()
-            .name(format!("client-{}", thread_id));
-        threads.push(worker.spawn(move || make_request(authority, repeat_count, request.as_bytes(), thread_id)).unwrap());
+        let request = build_publish_request(&authority);
+        let worker = thread::Builder::new().name(format!("client-{}", thread_id));
+        threads.push(
+            worker
+                .spawn(move || send_request(authority, repeat_count, request.as_bytes(), thread_id))
+                .unwrap(),
+        );
     }
+
+    for index in 0..concurrency {
+        let thread_id = concurrency + index + 1;
+        let request = build_get_message_request(&authority);
+        let worker = thread::Builder::new().name(format!("client-{}", thread_id));
+        threads.push(
+            worker
+                .spawn(move || send_request(authority, repeat_count, request.as_bytes(), thread_id))
+                .unwrap(),
+        );
+    }
+
     for thread in threads {
         thread.join().expect("Failed to join worker thread");
     }
 
     let elapsed = start.elapsed();
     println!(
-        "Elapsed: {:.2?} GET {}{} {} times with {} concurrency",
+        "Elapsed: {:.2?} posting {} messages {} concurrency",
         elapsed,
-        authority,
-        path,
         concurrency * repeat_count,
         concurrency
     );
@@ -48,35 +60,84 @@ pub async fn run_test() -> super::Result<()> {
     Ok(())
 }
 
-fn make_request(authority: &str, count: usize, request: &[u8], _thread_id: usize) {
-    let stream = TcpStream::connect(authority).expect(&format!("Failed to connect to {}", authority));
+fn build_publish_request(authority: &str) -> String {
+    let path = "/v1/pub/message";
+    let q = "\"";
+    let topic_id = rand::random::<u16>() % 2 + 1;
+    let partition_id = rand::random::<u16>() % 3 + 1;
+    let id: u16 = rand::random();
+    let body = format!("{{ {q}topic_id{q}:{topic_id}, {q}partition_id{q}:{partition_id}, {q}attributes{q}:{{{q}message-id{q}:{q}{id}{q} }} }}");
+    let len = body.len();
+    let headers = format!("Host: {authority}\r\nConnection: keep-alive\r\nContent-Type: application/json\r\nContent-Length: {len}\r\n");
+    format!("POST {path} HTTP/1.1\r\n{headers}\r\n{body}")
+}
 
-    let mut response_lines = BufReader::new(&stream)
-        .lines()
-        .map(|result| match result {
-            Ok(line) => line,
-            Err(err) => {
-                println!("{}", err);
-                String::default()
-            },
-        });
+fn build_get_message_request(authority: &str) -> String {
+    let topic_id = rand::random::<u16>() % 2 + 1;
+    let path = format!("/v1/sub/topic/{topic_id}/subscription/1/consumer/1/message");
+    let headers = format!("Host: {authority}\r\nConnection: keep-alive\r\n");
+    format!("GET {path} HTTP/1.1\r\n{headers}\r\n")
+}
+
+fn _build_ack_request(authority: &str) -> String {
+    let path = "/v1/sub/ack";
+    let q = "\"";
+    let topic_id = rand::random::<u16>() % 2 + 1;
+    let partition_id = rand::random::<u16>() % 3 + 1;
+    let id: u16 = rand::random();
+    let body = format!("{{ {q}topic_id{q}:{topic_id}, {q}partition_id{q}:{partition_id}, {q}attributes{q}:{{{q}message-id{q}:{q}{id}{q} }} }}");
+    let len = body.len();
+    let headers = format!("Host: {authority}\r\nConnection: keep-alive\r\nContent-Type: application/json\r\nContent-Length: {len}\r\n");
+    format!("POST {path} HTTP/1.1\r\n{headers}\r\n{body}")
+}
+
+fn send_request(authority: &str, count: usize, request: &[u8], _thread_id: usize) {
+    let stream =
+        TcpStream::connect(authority).expect(&format!("Failed to connect to {}", authority));
+
+    let mut response_lines = BufReader::new(&stream).lines().map(|result| match result {
+        Ok(line) => line,
+        Err(err) => {
+            println!("{}", err);
+            String::default()
+        }
+    });
 
     let mut request_writer = BufWriter::new(&stream);
 
     for _ in 0..count {
-        request_writer.write_all(&request).expect("Failed to write request to stream");
-        request_writer.flush().expect("Failed to flush request stream");
+        request_writer
+            .write_all(&request)
+            .expect("Failed to write request to stream");
+        request_writer
+            .flush()
+            .expect("Failed to flush request stream");
 
         let _ = extract_response(&mut response_lines);
+        // println!("{:?}", extract_response(&mut response_lines));
     }
 }
 
 fn extract_response(lines: &mut impl Iterator<Item = String>) -> Vec<String> {
     let mut result = Vec::new();
+    let mut _content_length: u32 = 0;
     loop {
         match lines.next() {
-            Some(line) if line.len() > 0 => { result.push(line); },
-            _ => { return result; }
+            Some(line) if line.len() > 0 => {
+                if line.starts_with("content-length: ") {
+                    _content_length = line[16..].parse().unwrap();
+                }
+                result.push(line);
+            }
+            // Some(_) if content_length > 0 => {
+            //     match lines.next() {
+            //         Some(line) => result.push(line),
+            //         None => { return result }
+            //     }
+            // }
+            _ => {
+                return result;
+            }
         }
     }
 }

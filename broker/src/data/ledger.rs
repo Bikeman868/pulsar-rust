@@ -1,9 +1,12 @@
-use pulsar_rust_net::data_types::{LedgerId, NodeId, PartitionId, TopicId};
+use super::{
+    DataAddError, DataAddResult, DataLayer, DataReadError, DataReadResult, DataUpdateError,
+    DataUpdateResult,
+};
 use crate::persistence::{
     entity_persister::{DeleteError, SaveError},
-    persisted_entities::{Partition, Ledger},
+    persisted_entities::{Ledger, Partition},
 };
-use super::{DataAddError, DataAddResult, DataLayer, DataReadError, DataReadResult, DataUpdateError, DataUpdateResult};
+use pulsar_rust_net::data_types::{LedgerId, NodeId, PartitionId, TopicId};
 
 impl DataLayer {
     pub fn get_ledger(
@@ -18,7 +21,11 @@ impl DataLayer {
     pub fn get_ledgers(self: &Self, partition: &Partition) -> DataReadResult<Vec<Ledger>> {
         let mut ledgers: Vec<Ledger> = Vec::new();
         for ledger_id in &partition.ledger_ids {
-            ledgers.push(self.get_ledger(partition.topic_id, partition.partition_id, *ledger_id)?);
+            ledgers.push(self.get_ledger(
+                partition.topic_id,
+                partition.partition_id,
+                *ledger_id,
+            )?);
         }
         Ok(ledgers)
     }
@@ -26,7 +33,7 @@ impl DataLayer {
     pub fn get_last_ledger_id(self: &Self, partition: &Partition) -> Option<LedgerId> {
         match self.add_ledger_if_none(partition.topic_id, partition.partition_id) {
             Ok(ledger) => Some(ledger.ledger_id),
-            Err(_) => None
+            Err(_) => None,
         }
     }
 
@@ -43,8 +50,10 @@ impl DataLayer {
             partition.next_ledger_id += 1;
             partition.ledger_ids.push(ledger_id);
             true
-        }){
-            return Err(DataAddError::PersistenceFailure { msg: (format!("Failed to update partition. {:?}", err)) });
+        }) {
+            return Err(DataAddError::PersistenceFailure {
+                msg: (format!("Failed to update partition. {:?}", err)),
+            });
         }
 
         let mut ledger = Ledger::new(topic_id, partition_id, ledger_id, node_id);
@@ -90,11 +99,21 @@ impl DataLayer {
         }) {
             Ok(_) => (), // Partition was updated with the new ledger id, we still need to create the ledger
             Err(err) => match err {
-                DataUpdateError::Unmodified => match self.get_ledger(topic_id, partition_id, ledger_id) {
-                    Ok(ledger) => return Ok(ledger),
-                    Err(err) => return Err(DataAddError::PersistenceFailure { msg: format!("{:?}", err)})
-                },
-                err => return Err(DataAddError::PersistenceFailure { msg: format!("{:?}", err)}),
+                DataUpdateError::Unmodified => {
+                    match self.get_ledger(topic_id, partition_id, ledger_id) {
+                        Ok(ledger) => return Ok(ledger),
+                        Err(err) => {
+                            return Err(DataAddError::PersistenceFailure {
+                                msg: format!("{:?}", err),
+                            })
+                        }
+                    }
+                }
+                err => {
+                    return Err(DataAddError::PersistenceFailure {
+                        msg: format!("{:?}", err),
+                    })
+                }
             },
         }
 
@@ -129,9 +148,13 @@ impl DataLayer {
         loop {
             let mut ledger = match self.get_ledger(topic_id, partition_id, ledger_id) {
                 Ok(ledger) => ledger,
-                Err(err) => return match err {
-                    DataReadError::PersistenceFailure { msg } => Err(DataUpdateError::PersistenceFailure { msg }),
-                    DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                Err(err) => {
+                    return match err {
+                        DataReadError::PersistenceFailure { msg } => {
+                            Err(DataUpdateError::PersistenceFailure { msg })
+                        }
+                        DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                    }
                 }
             };
 

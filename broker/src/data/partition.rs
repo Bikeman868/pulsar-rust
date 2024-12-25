@@ -1,9 +1,12 @@
-use pulsar_rust_net::data_types::{NodeId, PartitionId, TopicId};
+use super::{
+    DataAddError, DataAddResult, DataLayer, DataReadError, DataReadResult, DataUpdateError,
+    DataUpdateResult,
+};
 use crate::persistence::{
     entity_persister::{DeleteError, SaveError},
-    persisted_entities::{Topic, Partition},
+    persisted_entities::{Partition, Topic},
 };
-use super::{DataAddError, DataAddResult, DataLayer, DataReadError, DataReadResult, DataUpdateError, DataUpdateResult};
+use pulsar_rust_net::data_types::{NodeId, PartitionId, TopicId};
 
 impl DataLayer {
     pub fn get_partition(
@@ -22,7 +25,11 @@ impl DataLayer {
         Ok(partitions)
     }
 
-    pub fn add_partition(self: &Self, topic_id: TopicId, node_id: NodeId) -> DataAddResult<Partition> {
+    pub fn add_partition(
+        self: &Self,
+        topic_id: TopicId,
+        node_id: NodeId,
+    ) -> DataAddResult<Partition> {
         let mut partition_id: PartitionId = 0;
 
         if let Err(err) = self.update_topic(topic_id, |topic| {
@@ -31,7 +38,9 @@ impl DataLayer {
             topic.partition_ids.push(partition_id);
             true
         }) {
-            return Err(DataAddError::PersistenceFailure { msg: (format!("Failed to update topic. {:?}", err)) });
+            return Err(DataAddError::PersistenceFailure {
+                msg: (format!("Failed to update topic. {:?}", err)),
+            });
         }
 
         let mut partition = Partition::new(topic_id, partition_id, Vec::new(), 1, node_id);
@@ -58,9 +67,13 @@ impl DataLayer {
     ) -> DataUpdateResult<()> {
         let partition = match self.get_partition(topic_id, partition_id) {
             Ok(partition) => partition,
-            Err(err) => return match err {
-                DataReadError::PersistenceFailure { msg } => Err(DataUpdateError::PersistenceFailure { msg }),
-                DataReadError::NotFound => Err(DataUpdateError::NotFound),
+            Err(err) => {
+                return match err {
+                    DataReadError::PersistenceFailure { msg } => {
+                        Err(DataUpdateError::PersistenceFailure { msg })
+                    }
+                    DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                }
             }
         };
 
@@ -79,9 +92,13 @@ impl DataLayer {
         {
             Ok(_) => DataUpdateResult::Ok(()),
             Err(e) => match e {
-                DeleteError::Error { msg } => DataUpdateResult::Err(DataUpdateError::PersistenceFailure {
-                    msg: format!("{msg} deleting partition {partition_id} from topic {topic_id}"),
-                }),
+                DeleteError::Error { msg } => {
+                    DataUpdateResult::Err(DataUpdateError::PersistenceFailure {
+                        msg: format!(
+                            "{msg} deleting partition {partition_id} from topic {topic_id}"
+                        ),
+                    })
+                }
                 DeleteError::NotFound { .. } => DataUpdateResult::Ok(()),
             },
         }
@@ -99,13 +116,19 @@ impl DataLayer {
         loop {
             let mut partition = match self.get_partition(topic_id, partition_id) {
                 Ok(partition) => partition,
-                Err(err) => return match err {
-                    DataReadError::PersistenceFailure { msg } => Err(DataUpdateError::PersistenceFailure { msg }),
-                    DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                Err(err) => {
+                    return match err {
+                        DataReadError::PersistenceFailure { msg } => {
+                            Err(DataUpdateError::PersistenceFailure { msg })
+                        }
+                        DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                    }
                 }
             };
 
-            if !update(&mut partition) { return Err(DataUpdateError::Unmodified) }
+            if !update(&mut partition) {
+                return Err(DataUpdateError::Unmodified);
+            }
 
             match self.persistence.save(&mut partition) {
                 Ok(_) => return DataUpdateResult::Ok(partition),

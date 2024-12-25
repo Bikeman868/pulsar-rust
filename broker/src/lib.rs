@@ -1,10 +1,12 @@
-use std::sync::{atomic::{AtomicBool, AtomicU32}, Arc};
+#[macro_use]
+extern crate lazy_static;
 
 use observability::Metrics;
 use persistence::PersistenceLayer;
-use services::admin_service::AdminService;
+use services::{admin_service::AdminService, stats_service::StatsService};
 use services::pub_service::PubService;
 use services::sub_service::SubService;
+use std::sync::{atomic::AtomicBool, Arc};
 
 /// This module is updated with a randomly generated build number automatically on each build
 /// The build number is used as a version identifier
@@ -38,9 +40,9 @@ pub mod api_bin_sockets;
 pub mod node_sync;
 
 /// Miscelaneous
+mod collections;
+mod formatting;
 mod utils;
-// mod collections;
-mod html_builder;
 
 /// Metrics and logging
 pub mod observability;
@@ -52,4 +54,5 @@ pub struct App {
     pub pub_service: Arc<PubService>,
     pub sub_service: Arc<SubService>,
     pub admin_service: Arc<AdminService>,
+    pub stats_service: Arc<StatsService>,
 }

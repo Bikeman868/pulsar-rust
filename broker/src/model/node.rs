@@ -1,19 +1,16 @@
-use std::{
-    collections::{hash_map, HashMap}, 
-    sync::Arc
-};
-use pulsar_rust_net::data_types::{
-    NodeId, PortNumber,
-};
 use crate::{
     data::{DataLayer, DataReadError},
     persistence::persisted_entities,
 };
+use pulsar_rust_net::data_types::{NodeId, PortNumber};
+use std::
+    sync::Arc
+;
 
-use super::RefreshStatus;
+use super::{Entity, EntityList, EntityRef, RefreshStatus};
 
 /// Represents a VM that is running the application and processing requests for pub/sub
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Node {
     persisted_data: persisted_entities::Node,
     refresh_status: RefreshStatus,
@@ -24,12 +21,29 @@ pub struct Node {
     sync_port: PortNumber,
 }
 
+impl Entity<NodeId> for Node { 
+    fn key(self: &Self) -> NodeId { self.node_id }
+}
+
+pub type NodeRef = EntityRef<NodeId, Node>;
+pub type NodeList = EntityList<NodeId, Node>;
+
 impl Node {
-    pub fn node_id(self: &Self) -> NodeId { self.node_id }
-    pub fn ip_address(self: &Self) -> &String { &self.ip_address }
-    pub fn admin_port(self: &Self) -> PortNumber { self.admin_port }
-    pub fn pubsub_port(self: &Self) -> PortNumber { self.pubsub_port }
-    pub fn sync_port(self: &Self) -> PortNumber { self.sync_port }
+    pub fn node_id(self: &Self) -> NodeId {
+        self.node_id
+    }
+    pub fn ip_address(self: &Self) -> &String {
+        &self.ip_address
+    }
+    pub fn admin_port(self: &Self) -> PortNumber {
+        self.admin_port
+    }
+    pub fn pubsub_port(self: &Self) -> PortNumber {
+        self.pubsub_port
+    }
+    pub fn sync_port(self: &Self) -> PortNumber {
+        self.sync_port
+    }
 
     pub fn new(data_layer: &Arc<DataLayer>, node_id: NodeId) -> Self {
         let node = data_layer.get_node(node_id).unwrap();
@@ -53,33 +67,11 @@ impl Node {
             Ok(node) => {
                 self.persisted_data = node;
                 self.refresh_status = RefreshStatus::Updated;
-            },
+            }
             Err(err) => match err {
-                DataReadError::NotFound { .. } => {
-                    self.refresh_status = RefreshStatus::Deleted
-                }
-                _ => self.refresh_status = RefreshStatus::Stale
+                DataReadError::NotFound { .. } => self.refresh_status = RefreshStatus::Deleted,
+                _ => self.refresh_status = RefreshStatus::Stale,
             },
         }
-    }
-}
-
-/// Represents the list of nodes in the cluster
-#[derive(Debug)]
-pub struct NodeList {
-    hash_by_node_id: HashMap<NodeId, Node>,
-}
-
-impl NodeList {
-    pub fn new (nodes: impl Iterator<Item = Node>) -> Self{
-        Self { hash_by_node_id: nodes.map(|n|(n.node_id, n)).collect() }
-    }
-
-    pub fn by_id(self: &Self, node_id: NodeId) -> Option<&Node> {
-        Some(self.hash_by_node_id.get(&node_id)?)
-    }
-
-    pub fn iter(self: &Self) -> hash_map::Values<'_, NodeId, Node>  {
-        self.hash_by_node_id.values()
     }
 }

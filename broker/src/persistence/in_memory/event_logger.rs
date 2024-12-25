@@ -1,8 +1,9 @@
-use std::sync::RwLock;
-use pulsar_rust_net::data_types::Timestamp;
 use crate::persistence::{
-    event_logger::{EventQueryOptions, LogDeleteResult, LogEventResult}, log_entries::LogEntry,
+    event_logger::{EventQueryOptions, LogDeleteResult, LogEventResult},
+    log_entries::LogEntry,
 };
+use pulsar_rust_net::data_types::Timestamp;
+use std::sync::RwLock;
 
 pub struct EventLogger {
     entries: RwLock<Vec<LogEntry>>,
@@ -18,7 +19,7 @@ impl EventLogger {
     #[cfg(debug_assertions)]
     pub fn delete_all(self: &Self) {
         self.entries.write().unwrap().clear();
-        println!("Event log cleared");
+        // println!("Event log cleared");
     }
 
     pub fn log(self: &Self, log_entry: LogEntry) -> LogEventResult {
@@ -59,17 +60,33 @@ impl EventLogger {
         'a: 'b,
     {
         if options.descending {
-            Box::new(DescendingLogEntryIterator::new(
-                &self.entries,
-                options,
-                move |entry| entry.key.starts_with(key_prefix),
-            ))
+            if options.exact_match {
+                Box::new(DescendingLogEntryIterator::new(
+                    &self.entries,
+                    options,
+                    move |entry| entry.key == key_prefix,
+                ))
+            } else {
+                Box::new(DescendingLogEntryIterator::new(
+                    &self.entries,
+                    options,
+                    move |entry| entry.key.starts_with(key_prefix),
+                ))
+            }
         } else {
-            Box::new(AscendingLogEntryIterator::new(
-                &self.entries,
-                options,
-                move |entry| entry.key.starts_with(key_prefix),
-            ))
+            if options.exact_match {
+                Box::new(AscendingLogEntryIterator::new(
+                    &self.entries,
+                    options,
+                    move |entry| entry.key == key_prefix,
+                ))
+            } else {
+                Box::new(AscendingLogEntryIterator::new(
+                    &self.entries,
+                    options,
+                    move |entry| entry.key.starts_with(key_prefix),
+                ))
+            }
         }
     }
 

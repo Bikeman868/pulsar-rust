@@ -1,19 +1,17 @@
 use std::collections::HashMap;
 
-use pulsar_rust_net::data_types::NodeId;
 use pulsar_rust_broker::{
-    model::messages::{Message, MessageRef},
+    model::messages::{MessageRef, PublishedMessage},
     persistence::{
-        entity_persister::{LoadError, LoadResult}, 
-        event_logger::EventQueryOptions, 
-        log_entries::{LogEntry, LoggedEvent}, 
-        logged_events::{AckEvent, NackEvent, PublishEvent}, 
-        persisted_entities::Node, 
-        Keyed, 
-        PersistenceLayer, 
-        PersistenceScheme
-    }
+        entity_persister::{LoadError, LoadResult},
+        event_logger::EventQueryOptions,
+        log_entries::{LogEntry, LoggedEvent},
+        logged_events::{AckEvent, NackEvent, PublishEvent},
+        persisted_entities::Node,
+        Keyed, PersistenceLayer, PersistenceScheme,
+    },
 };
+use pulsar_rust_net::data_types::NodeId;
 
 #[test]
 fn should_persist_entities_in_memory() {
@@ -61,14 +59,13 @@ fn should_persist_events_in_memory() {
         message_id: 544,
     };
 
-    let message = Message {
+    let message = PublishedMessage {
         message_ref,
         key: "".to_owned(),
         timestamp: 8773873,
         published: 9839845,
         attributes: HashMap::new(),
         subscriber_count: 1,
-        delivery_count: 0,
         ack_count: 0,
     };
 
@@ -113,7 +110,7 @@ fn should_persist_events_in_memory() {
     assert_eq!(events.len(), 4);
 
     assert_eq!(events[0].timestamp, 1);
-    assert_eq!(events[0].type_name, "Pub");
+    assert_eq!(events[0].type_name, "Publish");
     assert_eq!(events[0].key, "1:16:12:544");
 
     assert_eq!(events[1].timestamp, 2);
@@ -141,22 +138,22 @@ fn should_selectively_delete_events() {
             for ledger_id in 1..=2 {
                 for message_id in 1..=5 {
                     persistence
-                        .log_event(&LoggedEvent::Publish(PublishEvent::new(&Message {
-                            message_ref: MessageRef {
-                                topic_id: topic_id,
-                                partition_id: partition_id,
-                                ledger_id: ledger_id,
-                                message_id: message_id,
+                        .log_event(&LoggedEvent::Publish(PublishEvent::new(
+                            &PublishedMessage {
+                                message_ref: MessageRef {
+                                    topic_id: topic_id,
+                                    partition_id: partition_id,
+                                    ledger_id: ledger_id,
+                                    message_id: message_id,
+                                },
+                                key: String::default(),
+                                timestamp: 0,
+                                published: 0,
+                                attributes: HashMap::new(),
+                                subscriber_count: 0,
+                                ack_count: 0,
                             },
-                            key: String::default(),
-                            timestamp: 0,
-                            published: 0,
-                            attributes: HashMap::new(),
-                            subscriber_count: 0,
-                            delivery_count: 0,
-                            ack_count: 0,
-                            
-                        })))
+                        )))
                         .unwrap();
 
                     persistence

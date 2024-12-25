@@ -15,18 +15,15 @@ information to these entities and try to update them thousands of times per seco
 */
 
 pub mod cluster;
-pub mod node;
-pub mod topic;
-pub mod partition;
 pub mod ledger;
+pub mod node;
+pub mod partition;
 pub mod subscription;
+pub mod topic;
 
-use std::{fmt::Debug, sync::Arc};
+use crate::persistence::{entity_persister::LoadError, Keyed, PersistenceLayer};
 use serde::Deserialize;
-use crate::persistence::{
-    entity_persister::LoadError,
-    Keyed, PersistenceLayer,    
-};
+use std::{fmt::Debug, sync::Arc};
 
 #[derive(Debug, PartialEq)]
 pub enum DataUpdateError {
@@ -67,7 +64,9 @@ impl DataLayer {
         match self.persistence.load::<T>(key) {
             Ok(entity) => DataReadResult::Ok(entity),
             Err(e) => match e {
-                LoadError::Error { msg } => DataReadResult::Err(DataReadError::PersistenceFailure { msg }),
+                LoadError::Error { msg } => {
+                    DataReadResult::Err(DataReadError::PersistenceFailure { msg })
+                }
                 LoadError::NotFound {
                     entity_type,
                     entity_key,

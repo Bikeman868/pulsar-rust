@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use pulsar_rust_net::data_types::{LedgerId, NodeId, PartitionId, PortNumber, SubscriptionId, TopicId, VersionNumber};
 use crate::persistence::{Keyed, Versioned};
+use pulsar_rust_net::data_types::{
+    ConsumerId, LedgerId, NodeId, PartitionId, PortNumber, SubscriptionId, TopicId, VersionNumber,
+};
 
 use super::Key;
 
@@ -282,16 +284,26 @@ pub struct Subscription {
     pub topic_id: TopicId,
     pub subscription_id: SubscriptionId,
     pub name: String,
+    pub has_key_affinity: bool,
+    pub next_consumer_id: ConsumerId,
 }
 
 #[rustfmt::skip]
 impl Subscription {
-    pub fn new(topic_id: TopicId, subscription_id: SubscriptionId, name: String) -> Self {
+    pub fn new(
+        topic_id: TopicId, 
+        subscription_id: SubscriptionId, 
+        name: String, 
+        has_key_affinity: bool,
+        next_consumer_id: ConsumerId,
+    ) -> Self {
         Self {
             version: 0,
             topic_id,
             subscription_id,
             name,
+            has_key_affinity,
+            next_consumer_id,
         }
     }
     pub fn key(topic_id: TopicId, subscription_id: SubscriptionId) -> impl Keyed {

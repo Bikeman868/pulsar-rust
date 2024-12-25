@@ -6,7 +6,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::data_types::{ConsumerId, LedgerId, MessageId, NodeId, PartitionId, PortNumber, SubscriptionId, Timestamp, TopicId};
+use crate::data_types::{
+    ConsumerId, LedgerId, MessageId, NodeId, PartitionId, PortNumber, SubscriptionId, Timestamp,
+    TopicId,
+};
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct ClusterSummary {
@@ -110,9 +113,19 @@ pub struct LedgerList {
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct PublishResult {
-    pub result: PostResult,
-    pub message_ref: Option<MessageRef>,
+    pub message_ref: MessageRef,
 }
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct AllocateConsumerResult {
+    pub consumer_id: ConsumerId,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct AckResult {}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct NackResult {}
 
 #[derive(Deserialize, Serialize, Clone, Default)]
 pub struct MessageRef {
@@ -126,7 +139,10 @@ pub struct MessageRef {
 pub struct Message {
     pub message_ref: MessageRef,
     pub message_key: String,
+    pub message_ack_key: String,
     pub published: Timestamp,
+    pub delivered: Timestamp,
+    pub delivery_count: usize,
     pub attributes: HashMap<String, String>,
 }
 
@@ -157,10 +173,35 @@ pub struct NackLogEntry {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+pub struct NewConsumerLogEntry {
+    pub topic_id: TopicId,
+    pub subscription_id: SubscriptionId,
+    pub consumer_id: ConsumerId,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct DropConsumerLogEntry {
+    pub topic_id: TopicId,
+    pub subscription_id: SubscriptionId,
+    pub consumer_id: ConsumerId,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct KeyAffinityLogEntry {
+    pub topic_id: TopicId,
+    pub subscription_id: SubscriptionId,
+    pub consumer_id: ConsumerId,
+    pub message_key: String,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
 pub enum LogEntryDetail {
     Publish(PublishLogEntry),
     Ack(AckLogEntry),
     Nack(NackLogEntry),
+    NewConsumer(NewConsumerLogEntry),
+    DropConsumer(DropConsumerLogEntry),
+    KeyAffinity(KeyAffinityLogEntry),
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -172,22 +213,47 @@ pub struct LogEntry {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
-pub struct PostResult {
-    pub success: bool,
-    pub error: Option<String>,
+pub enum RequestOutcome {
+    Success,
+    NoData,
+    Warning,
+    Error,
 }
 
-impl PostResult {
-    pub fn error(msg: &str) -> Self {
+#[derive(Deserialize, Serialize, Clone)]
+pub struct Response<T> {
+    pub outcome: RequestOutcome,
+    pub message: Option<String>,
+    pub data: Option<T>,
+}
+
+impl<T> Response<T> {
+    pub fn success(data: T) -> Self {
         Self {
-            success: false,
-            error: Some(msg.to_owned()),
+            outcome: RequestOutcome::Success,
+            message: None,
+            data: Some(data),
         }
     }
-    pub fn success() -> Self {
+    pub fn no_data(msg: &str) -> Self {
         Self {
-            success: true,
-            error: None,
+            outcome: RequestOutcome::NoData,
+            message: Some(msg.to_owned()),
+            data: None,
+        }
+    }
+    pub fn warning(msg: &str) -> Self {
+        Self {
+            outcome: RequestOutcome::Warning,
+            message: Some(msg.to_owned()),
+            data: None,
+        }
+    }
+    pub fn error(msg: &str) -> Self {
+        Self {
+            outcome: RequestOutcome::Error,
+            message: Some(msg.to_owned()),
+            data: None,
         }
     }
 }

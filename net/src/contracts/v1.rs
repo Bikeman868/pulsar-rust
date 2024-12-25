@@ -1,36 +1,37 @@
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
-use crate::contracts::v1;
 
+pub mod display;
 pub mod requests;
 pub mod responses;
-pub mod plain_text;
 pub struct ContractSerializer {}
 
+const BUFFER_CAPACITY: usize = 2048;
+
 impl ContractSerializer {
-    fn serialize<T: Serialize>(entity: T) -> super::SerializeResult {
-        let mut buffer = Vec::with_capacity(super::BUFFER_CAPACITY);
+    // TODO: maintain a pool of buffers
+
+    pub fn serialize<T: Serialize>(self: &Self, entity: T) -> super::SerializeResult {
+        let mut buffer = Vec::with_capacity(BUFFER_CAPACITY);
         let mut serializer = Serializer::new(&mut buffer);
         match entity.serialize(&mut serializer) {
             Ok(_) => Ok(buffer),
-            Err(err) => Err(super::SerializeError::Error { msg: format!("{err:?}")}),
+            Err(err) => Err(super::SerializeError::Error {
+                msg: format!("{err:?}"),
+            }),
         }
     }
 
-    fn deserialize<'a, T>(buffer: Vec<u8>) -> super::DeserializeResult<T> where T: Deserialize<'a>{
+    pub fn deserialize<'a, T>(self: &Self, buffer: Vec<u8>) -> super::DeserializeResult<T>
+    where
+        T: Deserialize<'a>,
+    {
         let mut deserializer = Deserializer::new(&buffer[..]);
         match Deserialize::deserialize(&mut deserializer) {
             Ok(entity) => super::DeserializeResult::Ok(entity),
-            Err(err) => Err(super::DeserializeError::Error { msg: format!("{err:?}")}),
+            Err(err) => Err(super::DeserializeError::Error {
+                msg: format!("{err:?}"),
+            }),
         }
     }
-
-    pub fn serialize_node_detail_response(node_detail: &v1::responses::NodeDetail) -> super::SerializeResult {
-        Self::serialize(node_detail)
-    }
-
-    pub fn deserialize_node_detail_response(buffer: Vec<u8>) -> super::DeserializeResult<v1::responses::NodeDetail> {
-        Self::deserialize(buffer)
-    } 
 }
-

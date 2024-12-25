@@ -1,9 +1,12 @@
-use pulsar_rust_net::data_types::TopicId;
+use super::{
+    DataAddError, DataAddResult, DataLayer, DataReadError, DataReadResult, DataUpdateError,
+    DataUpdateResult,
+};
 use crate::persistence::{
     entity_persister::{DeleteError, SaveError},
     persisted_entities::Topic,
 };
-use super::{DataAddError, DataAddResult, DataLayer, DataReadError, DataReadResult, DataUpdateError, DataUpdateResult};
+use pulsar_rust_net::data_types::TopicId;
 
 impl DataLayer {
     pub fn get_topic(self: &Self, topic_id: TopicId) -> DataReadResult<Topic> {
@@ -32,7 +35,9 @@ impl DataLayer {
             cluster.topic_ids.push(topic_id);
             true
         }) {
-            return Err(DataAddError::PersistenceFailure { msg: (format!("Failed to update cluster. {:?}", err)) });
+            return Err(DataAddError::PersistenceFailure {
+                msg: (format!("Failed to update cluster. {:?}", err)),
+            });
         }
 
         let mut topic = Topic::new(topic_id, name.to_owned(), Vec::new(), Vec::new(), 1, 1);
@@ -57,9 +62,13 @@ impl DataLayer {
     pub fn delete_topic(self: &Self, topic_id: TopicId) -> DataUpdateResult<()> {
         let topic = match self.get_topic(topic_id) {
             Ok(topic) => topic,
-            Err(err) => return match err {
-                DataReadError::PersistenceFailure { msg } => Err(DataUpdateError::PersistenceFailure { msg }),
-                DataReadError::NotFound => Err(DataUpdateError::NotFound),
+            Err(err) => {
+                return match err {
+                    DataReadError::PersistenceFailure { msg } => {
+                        Err(DataUpdateError::PersistenceFailure { msg })
+                    }
+                    DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                }
             }
         };
 
@@ -79,9 +88,11 @@ impl DataLayer {
         match self.persistence.delete(&Topic::key(topic_id)) {
             Ok(_) => DataUpdateResult::Ok(()),
             Err(e) => match e {
-                DeleteError::Error { msg } => DataUpdateResult::Err(DataUpdateError::PersistenceFailure {
-                    msg: format!("{msg} deleting topic {topic_id}"),
-                }),
+                DeleteError::Error { msg } => {
+                    DataUpdateResult::Err(DataUpdateError::PersistenceFailure {
+                        msg: format!("{msg} deleting topic {topic_id}"),
+                    })
+                }
                 DeleteError::NotFound { .. } => DataUpdateResult::Ok(()),
             },
         }
@@ -94,9 +105,13 @@ impl DataLayer {
         loop {
             let mut topic = match self.get_topic(topic_id) {
                 Ok(topic) => topic,
-                Err(err) => return match err {
-                    DataReadError::PersistenceFailure { msg } => Err(DataUpdateError::PersistenceFailure { msg }),
-                    DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                Err(err) => {
+                    return match err {
+                        DataReadError::PersistenceFailure { msg } => {
+                            Err(DataUpdateError::PersistenceFailure { msg })
+                        }
+                        DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                    }
                 }
             };
 

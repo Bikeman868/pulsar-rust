@@ -1,25 +1,24 @@
+use config::Config;
+use pulsar_rust_broker::{
+    api_http_warp,
+    data::DataLayer,
+    model::cluster::{Cluster, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT},
+    observability::Metrics,
+    persistence::{PersistenceLayer, PersistenceScheme},
+    services::{admin_service::AdminService, pub_service::PubService, stats_service::StatsService, sub_service::SubService},
+    App,
+};
 use std::{
     collections::HashMap,
     env,
     net::{Ipv4Addr, SocketAddrV4},
     str::FromStr,
     sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
+        atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::Duration,
 };
-use config::Config;
-use tokio::{task, time};
-use pulsar_rust_broker::{
-    api_http_warp, data::DataLayer, model::cluster::{
-        Cluster, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT
-    }, observability::Metrics, persistence::{PersistenceLayer, PersistenceScheme}, services::{
-        admin_service::AdminService,
-        pub_service::PubService,
-        sub_service::SubService,
-    }, App
-};
+use tokio::task;
 
 #[tokio::main]
 async fn main() {
@@ -77,14 +76,81 @@ async fn main() {
         persistence_layer.delete_all();
 
         // Create a development configuration in the database
-        let node = data_layer.add_node(&ip_address, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT).unwrap();
-        let topic = data_layer.add_topic("my-topic").unwrap();
-        let partition = data_layer.add_partition(topic.topic_id, node.node_id).unwrap();
-        data_layer
-            .add_subscription(topic.topic_id, "my-app")
+        let node = data_layer
+            .add_node(
+                &ip_address,
+                DEFAULT_ADMIN_PORT,
+                DEFAULT_PUBSUB_PORT,
+                DEFAULT_SYNC_PORT,
+            )
+            .unwrap();
+        let topic1 = data_layer.add_topic("topic-1").unwrap();
+        let topic2 = data_layer.add_topic("topic-2").unwrap();
+        let partition_1_1 = data_layer
+            .add_partition(topic1.topic_id, node.node_id)
+            .unwrap();
+        let partition_1_2 = data_layer
+            .add_partition(topic1.topic_id, node.node_id)
+            .unwrap();
+        let partition_1_3 = data_layer
+            .add_partition(topic1.topic_id, node.node_id)
+            .unwrap();
+        let partition_2_1 = data_layer
+            .add_partition(topic2.topic_id, node.node_id)
+            .unwrap();
+        let partition_2_2 = data_layer
+            .add_partition(topic2.topic_id, node.node_id)
+            .unwrap();
+        let partition_2_3 = data_layer
+            .add_partition(topic2.topic_id, node.node_id)
             .unwrap();
         data_layer
-            .add_ledger(partition.topic_id, partition.partition_id, node.node_id)
+            .add_subscription(topic1.topic_id, "app-a", false)
+            .unwrap();
+        data_layer
+            .add_subscription(topic1.topic_id, "app-b", true)
+            .unwrap();
+        data_layer
+            .add_ledger(
+                partition_1_1.topic_id,
+                partition_1_1.partition_id,
+                node.node_id,
+            )
+            .unwrap();
+        data_layer
+            .add_ledger(
+                partition_1_2.topic_id,
+                partition_1_2.partition_id,
+                node.node_id,
+            )
+            .unwrap();
+        data_layer
+            .add_ledger(
+                partition_1_3.topic_id,
+                partition_1_3.partition_id,
+                node.node_id,
+            )
+            .unwrap();
+        data_layer
+            .add_ledger(
+                partition_2_1.topic_id,
+                partition_2_1.partition_id,
+                node.node_id,
+            )
+            .unwrap();
+        data_layer
+            .add_ledger(
+                partition_2_2.topic_id,
+                partition_2_2.partition_id,
+                node.node_id,
+            )
+            .unwrap();
+        data_layer
+            .add_ledger(
+                partition_2_3.topic_id,
+                partition_2_3.partition_id,
+                node.node_id,
+            )
             .unwrap();
     }
 
@@ -98,8 +164,9 @@ async fn main() {
         metrics: Arc::new(Metrics::new()),
         peristence: Arc::clone(&persistence_layer),
         pub_service: Arc::new(PubService::new(&persistence_layer, &cluster)),
-        sub_service: Arc::new(SubService::new(&cluster)),
+        sub_service: Arc::new(SubService::new(&persistence_layer, &cluster)),
         admin_service: Arc::new(AdminService::new(&cluster)),
+        stats_service: Arc::new(StatsService::new(&cluster)),
     });
 
     // Handle SIGTERM by setting the stop_signal boolean
@@ -108,12 +175,16 @@ async fn main() {
 
     // Start sending metrics to StatsD
     task::spawn(send_metrics(Arc::clone(&app)));
-    
+
     // Construct endpoints to listen on
     let my_node = cluster.my_node();
     let admin_endpoint = SocketAddrV4::new(
-        Ipv4Addr::from_str(&my_node.ip_address()).expect(&format!("Failed to parse {} as an IPv4 address", my_node.ip_address())), 
-        my_node.admin_port());
+        Ipv4Addr::from_str(&my_node.ip_address()).expect(&format!(
+            "Failed to parse {} as an IPv4 address",
+            my_node.ip_address()
+        )),
+        my_node.admin_port(),
+    );
 
     // Block the main thread until the Http server stops running
     api_http_warp::serve(&app, admin_endpoint).await;

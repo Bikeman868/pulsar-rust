@@ -1,9 +1,12 @@
-use pulsar_rust_net::data_types::{NodeId, PortNumber};
+use super::{
+    DataAddError, DataAddResult, DataLayer, DataReadError, DataReadResult, DataUpdateError,
+    DataUpdateResult,
+};
 use crate::persistence::{
     entity_persister::{DeleteError, SaveError},
     persisted_entities::Node,
 };
-use super::{DataAddError, DataAddResult, DataLayer, DataReadError, DataReadResult, DataUpdateError, DataUpdateResult};
+use pulsar_rust_net::data_types::{NodeId, PortNumber};
 
 impl DataLayer {
     pub fn get_node(self: &Self, node_id: NodeId) -> DataReadResult<Node> {
@@ -24,8 +27,8 @@ impl DataLayer {
     }
 
     pub fn add_node(
-        self: &Self, 
-        ip_address: &str, 
+        self: &Self,
+        ip_address: &str,
         admin_port: PortNumber,
         pubsub_port: PortNumber,
         sync_port: PortNumber,
@@ -38,7 +41,9 @@ impl DataLayer {
             cluster.node_ids.push(node_id);
             true
         }) {
-            return Err(DataAddError::PersistenceFailure { msg: (format!("Failed to update cluster. {:?}", err)) });
+            return Err(DataAddError::PersistenceFailure {
+                msg: (format!("Failed to update cluster. {:?}", err)),
+            });
         }
 
         let mut node = Node::new(node_id, ip_address, admin_port, pubsub_port, sync_port);
@@ -60,16 +65,18 @@ impl DataLayer {
 
     pub fn delete_node(self: &Self, node_id: NodeId) -> DataUpdateResult<()> {
         self.update_cluster(|cluster| {
-            cluster.node_ids.retain(|&id| id != node_id); 
+            cluster.node_ids.retain(|&id| id != node_id);
             true
         })?;
 
         match self.persistence.delete(&Node::key(node_id)) {
             Ok(_) => DataUpdateResult::Ok(()),
             Err(e) => match e {
-                DeleteError::Error { msg } => DataUpdateResult::Err(DataUpdateError::PersistenceFailure {
-                    msg: format!("{msg} deleting node {node_id}"),
-                }),
+                DeleteError::Error { msg } => {
+                    DataUpdateResult::Err(DataUpdateError::PersistenceFailure {
+                        msg: format!("{msg} deleting node {node_id}"),
+                    })
+                }
                 DeleteError::NotFound { .. } => DataUpdateResult::Ok(()),
             },
         }
@@ -82,9 +89,13 @@ impl DataLayer {
         loop {
             let mut node = match self.get_node(node_id) {
                 Ok(node) => node,
-                Err(err) => return match err {
-                    DataReadError::PersistenceFailure { msg } => Err(DataUpdateError::PersistenceFailure { msg }),
-                    DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                Err(err) => {
+                    return match err {
+                        DataReadError::PersistenceFailure { msg } => {
+                            Err(DataUpdateError::PersistenceFailure { msg })
+                        }
+                        DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                    }
                 }
             };
 

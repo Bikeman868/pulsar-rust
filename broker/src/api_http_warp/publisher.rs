@@ -1,8 +1,11 @@
-use std::sync::Arc;
-use warp::{get, post, path, reply, body, Filter, Rejection, Reply};
-use pulsar_rust_net::contracts::v1::{requests, responses};
-use crate::{observability::Metrics, services::pub_service::PubError, App};
 use super::with_app;
+use crate::{observability::Metrics, services::pub_service::PubError, App};
+use pulsar_rust_net::contracts::v1::{
+    requests,
+    responses::{self, Response},
+};
+use std::sync::Arc;
+use warp::{body, get, path, post, reply, Filter, Rejection, Reply};
 
 type TopicName = String;
 
@@ -13,37 +16,45 @@ async fn get_partitions_by_topic_name(
     app.metrics.incr(Metrics::METRIC_HTTP_PUB_MAPPING_COUNT);
     match app.pub_service.topic_by_name(&topic_name) {
         Some(topic) => {
-            let mut map = responses::TopicPartitionMap::from(topic);
+            let mut map = responses::TopicPartitionMap::from(&topic);
             let nodes = &*app.admin_service.all_nodes();
-            map.nodes = nodes.iter().map(|node|responses::NodeDetail::from(node)).collect();
-            Ok(reply::json(&map))
-        },
+            map.nodes = nodes
+                .values()
+                .iter()
+                .map(|node| responses::NodeDetail::from(node))
+                .collect();
+            Ok(reply::json(&Response::success(map)))
+        }
         None => Err(warp::reject::not_found()),
     }
 }
 
-async fn publish_message(message: requests::Message, app: Arc<App>) ->  Result<impl Reply, Rejection> {
+async fn publish_message(
+    message: requests::Message,
+    app: Arc<App>,
+) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_PUB_MESSAGE_COUNT);
-    match app.pub_service.publish_message(message.into()) {
-        Ok(message_ref) => Ok(reply::json(&responses::PublishResult{
-            result: responses::PostResult::success(),
-            message_ref: Some(message_ref.into()),
-        })),
+    let response = match app.pub_service.publish_message(message.into()) {
+        Ok(message_ref) => responses::Response::success(responses::PublishResult {
+            message_ref: message_ref.into(),
+        }),
         Err(err) => {
             let error = match err {
                 PubError::Error(msg) => &msg.clone(),
                 PubError::TopicNotFound => "No topic with this ID",
                 PubError::PartitionNotFound => "No partition with this ID",
                 PubError::NodeNotFound => "No node with this ID",
-                PubError::WrongNode(node) => &format!("Wrong node for this partition. Publish to {} instead", node.ip_address()),
+                PubError::WrongNode(node) => &format!(
+                    "Wrong node for this partition. Publish to {} instead",
+                    node.ip_address()
+                ),
                 PubError::BacklogCapacityExceeded => "The backlog storage is full",
+                PubError::NoSubscribers => "There are no active subscribers to this topic",
             };
-            Ok(reply::json(&responses::PublishResult{
-                result: responses::PostResult::error(error),
-                message_ref: None,
-            }))
+            responses::Response::error(error)
         }
-    }
+    };
+    Ok(reply::json(&response))
 }
 
 async fn ping(app: Arc<App>) -> Result<impl Reply, Rejection> {

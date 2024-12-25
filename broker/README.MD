@@ -30,7 +30,7 @@ Message publication consists of:
 - The client library hashes the key to a partition, maps the partition to the broker instance for that partition
 - The client library generates a unique identifer for the message
 - The client uploads the data to a storage mechanism using the generated identifier
-- The client calls the broker and asks it to publish the message, including the generated identifier as message attribute
+- The client calls the broker and asks it to publish the message, including the generated identifier as a message attribute
 - The broker adds the message to the undelivered message queue of each subscriber
 
 Message consumption consists of:
@@ -47,3 +47,17 @@ Message consumption consists of:
 - The client library calls the broker to pass on the ack/nack response from the application
 - Acked messages are removed from the queue for the subscription
 - Nacked and unacked messages are redelivered with an incremented retry count
+
+## Current status
+This is the current statis of this project
+- The broker state has been modeled to support the full feature set, and can be persisted to different storage solutions.
+- There is a REST API that uses application/json content. The API can manage the cluster configuration, publish and subscribe.
+- There is a web UI, but it can only display transaction logs at the moment.
+- The broker emits StatsD metrics.
+- The broker can be configured separately in each environment.
+
+## Limitations/roadmap
+
+The following features are in the roadmap
+- Much of the groundwork has been done to support clustering, but the comms between nodes and moving of partitions to balance load is not started yet.
+- There is no native client yet. The client will do binary serialization with the broker, right now you can make http+json requests to publish and subscribe.

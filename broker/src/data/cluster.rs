@@ -1,8 +1,8 @@
+use super::{DataLayer, DataReadError, DataReadResult, DataUpdateError, DataUpdateResult};
 use crate::persistence::{
     entity_persister::{LoadError, SaveError},
     persisted_entities::Cluster,
 };
-use super::{DataLayer, DataReadError, DataReadResult, DataUpdateError, DataUpdateResult};
 
 impl DataLayer {
     pub fn get_cluster(self: &Self) -> DataReadResult<Cluster> {
@@ -34,12 +34,16 @@ impl DataLayer {
         loop {
             let mut cluster = match self.get_cluster() {
                 Ok(cluster) => cluster,
-                Err(err) => return match err {
-                    DataReadError::PersistenceFailure { msg } => Err(DataUpdateError::PersistenceFailure { msg }),
-                    DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                Err(err) => {
+                    return match err {
+                        DataReadError::PersistenceFailure { msg } => {
+                            Err(DataUpdateError::PersistenceFailure { msg })
+                        }
+                        DataReadError::NotFound => Err(DataUpdateError::NotFound),
+                    }
                 }
             };
-    
+
             update(&mut cluster);
 
             match self.persistence.save(&mut cluster) {

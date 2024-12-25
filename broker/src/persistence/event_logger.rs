@@ -5,6 +5,7 @@ use super::{file_system, in_memory, log_entries::LogEntry};
 pub struct EventQueryOptions {
     pub include_serialization: bool,
     pub descending: bool,
+    pub exact_match: bool,
     pub skip: usize,
     pub take: usize,
 }
@@ -16,6 +17,7 @@ impl EventQueryOptions {
         Self {
             include_serialization: false,
             descending: true,
+            exact_match: false,
             skip: 0,
             take: 0,
         }
@@ -24,6 +26,7 @@ impl EventQueryOptions {
         Self {
             include_serialization: false,
             descending: true,
+            exact_match: false,
             skip,
             take,
         }
@@ -32,6 +35,7 @@ impl EventQueryOptions {
         Self {
             include_serialization: false,
             descending: true,
+            exact_match: false,
             skip: 0,
             take,
         }
@@ -40,6 +44,7 @@ impl EventQueryOptions {
         Self {
             include_serialization: true,
             descending: false,
+            exact_match: false,
             skip: 0,
             take: 0,
         }

@@ -1,14 +1,12 @@
 use std::{collections::HashMap, sync::RwLock};
 
-use rmp_serde::{Deserializer, Serializer};
-use serde::{Deserialize, Serialize};
-use pulsar_rust_net::data_types::VersionNumber;
 use crate::persistence::{
-    entity_persister::{
-        DeleteError, DeleteResult, LoadError, LoadResult, SaveError, SaveResult,
-    },
+    entity_persister::{DeleteError, DeleteResult, LoadError, LoadResult, SaveError, SaveResult},
     Keyed, Versioned,
 };
+use pulsar_rust_net::data_types::VersionNumber;
+use rmp_serde::{Deserializer, Serializer};
+use serde::{Deserialize, Serialize};
 
 pub struct StoredEntity {
     pub version: VersionNumber,
@@ -29,7 +27,7 @@ impl EntityPersister {
     #[cfg(debug_assertions)]
     pub fn delete_all(self: &Self) {
         self.type_map.write().unwrap().clear();
-        println!("Persisted state cleared");
+        // println!("Persisted state cleared");
     }
 
     pub fn save<T: Versioned + Keyed + Serialize>(self: &Self, entity: &mut T) -> SaveResult {
@@ -61,7 +59,7 @@ impl EntityPersister {
         let mut serializer = Serializer::new(&mut buffer);
         entity.serialize(&mut serializer).unwrap();
 
-        println!("SAVE {type_name}:{key} V{version} => {buffer:?}");
+        // println!("SAVE {type_name}:{key} V{version} => {buffer:?}");
 
         let stored_entity = StoredEntity {
             version,
@@ -85,18 +83,18 @@ impl EntityPersister {
 
         match entity_map.get(&keyed.key()) {
             Some(stored_entity) => {
-                println!(
-                    "LOAD {}:{} FOUND V{}",
-                    keyed.type_name(),
-                    keyed.key(),
-                    stored_entity.version
-                );
+                // println!(
+                //     "LOAD {}:{} FOUND V{}",
+                //     keyed.type_name(),
+                //     keyed.key(),
+                //     stored_entity.version
+                // );
                 let mut deserializer = Deserializer::new(&stored_entity.serialization[..]);
                 let entity: TEntity = Deserialize::deserialize(&mut deserializer).unwrap();
                 LoadResult::Ok(entity)
             }
             None => {
-                println!("LOAD {}:{} NOT FOUND", keyed.type_name(), keyed.key());
+                // println!("LOAD {}:{} NOT FOUND", keyed.type_name(), keyed.key());
                 LoadResult::Err(LoadError::NotFound {
                     entity_type: keyed.type_name().to_string(),
                     entity_key: keyed.key().to_string(),
@@ -113,7 +111,7 @@ impl EntityPersister {
             .write()
             .unwrap();
 
-        println!("DELETE {}:{}", keyed.type_name(), keyed.key());
+        // println!("DELETE {}:{}", keyed.type_name(), keyed.key());
 
         match entity_map.remove(&keyed.key()) {
             Some(_) => DeleteResult::Ok(()),

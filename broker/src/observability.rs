@@ -1,10 +1,17 @@
-use std::{collections::HashMap, sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex}, time::Duration};
 use statsd::Client;
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
+    time::Duration,
+};
 use tokio::time;
 
 pub struct Metrics {
     client: Mutex<Client>,
-    counts: Mutex<HashMap<String, f64>>
+    counts: Mutex<HashMap<String, f64>>,
 }
 
 impl Metrics {
@@ -13,8 +20,12 @@ impl Metrics {
     pub const METRIC_HTTP_PUB_PING_COUNT: &str = "http.request.pub.ping.count";
 
     pub const METRIC_HTTP_SUB_MESSAGE_COUNT: &str = "http.request.sub.message.count";
+    pub const METRIC_HTTP_SUB_CONSUMER_COUNT: &str = "http.request.sub.consumer.count";
+    pub const METRIC_HTTP_SUB_NODES_COUNT: &str = "http.request.sub.nodes.count";
+    pub const METRIC_HTTP_SUB_TOPICS_COUNT: &str = "http.request.sub.topics.count";
     pub const METRIC_HTTP_SUB_ACK_COUNT: &str = "http.request.sub.ack.count";
     pub const METRIC_HTTP_SUB_NACK_COUNT: &str = "http.request.sub.nack.count";
+    pub const METRIC_HTTP_SUB_PING_COUNT: &str = "http.request.sub.ping.count";
 
     pub const METRIC_HTTP_ADMIN_COUNT: &str = "http.request.admin.count";
 
@@ -22,9 +33,9 @@ impl Metrics {
         let client = statsd::Client::new("127.0.0.1:8125", "pulsar").unwrap();
         let counts = HashMap::with_capacity(200);
 
-        Self { 
-            client: Mutex::new(client), 
-            counts: Mutex::new(counts)
+        Self {
+            client: Mutex::new(client),
+            counts: Mutex::new(counts),
         }
     }
 

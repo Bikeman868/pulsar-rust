@@ -1,20 +1,19 @@
-use std::sync::Arc;
-use warp::{get, path, reply, Filter, Rejection, Reply};
-use pulsar_rust_net::{
-    contracts::v1::responses::{
-        LedgerDetail, LedgerList, Message, NodeDetail, NodeList, PartitionDetail, PartitionList, TopicDetail, TopicList
-    }, 
-    data_types::{
-        LedgerId, MessageId, NodeId, PartitionId, TopicId
-    }
-};
 use super::with_app;
 use crate::{observability::Metrics, App};
+use pulsar_rust_net::{
+    contracts::v1::responses::{
+        LedgerDetail, LedgerList, Message, NodeDetail, NodeList, PartitionDetail, PartitionList,
+        Response, TopicDetail, TopicList,
+    },
+    data_types::{LedgerId, MessageId, NodeId, PartitionId, TopicId},
+};
+use std::sync::Arc;
+use warp::{get, path, reply, Filter, Rejection, Reply};
 
 async fn get_node_by_id(node_id: NodeId, app: Arc<App>) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_ADMIN_COUNT);
     match app.admin_service.node_by_id(node_id) {
-        Some(node) => Ok(reply::json(&NodeDetail::from(node))),
+        Some(node) => Ok(reply::json(&Response::success(NodeDetail::from(&node)))),
         None => Err(warp::reject::not_found()),
     }
 }
@@ -22,7 +21,7 @@ async fn get_node_by_id(node_id: NodeId, app: Arc<App>) -> Result<impl Reply, Re
 async fn get_topic_by_id(topic_id: TopicId, app: Arc<App>) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_ADMIN_COUNT);
     match app.admin_service.topic_by_id(topic_id) {
-        Some(topic) => Ok(reply::json(&TopicDetail::from(topic))),
+        Some(topic) => Ok(reply::json(&Response::success(TopicDetail::from(&topic)))),
         None => Err(warp::reject::not_found()),
     }
 }
@@ -34,7 +33,9 @@ async fn get_partition_by_id(
 ) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_ADMIN_COUNT);
     match app.admin_service.partition_by_id(topic_id, partition_id) {
-        Some(partition) => Ok(reply::json(&PartitionDetail::from(partition))),
+        Some(partition) => Ok(reply::json(&Response::success(PartitionDetail::from(
+            &partition,
+        )))),
         None => Err(warp::reject::not_found()),
     }
 }
@@ -50,7 +51,7 @@ async fn get_ledger_by_id(
         .admin_service
         .ledger_by_id(topic_id, partition_id, ledger_id)
     {
-        Some(ledger) => Ok(reply::json(&LedgerDetail::from(ledger))),
+        Some(ledger) => Ok(reply::json(&Response::success(LedgerDetail::from(&ledger)))),
         None => Err(warp::reject::not_found()),
     }
 }
@@ -67,11 +68,9 @@ async fn get_message_by_id(
         .admin_service
         .ledger_by_id(topic_id, partition_id, ledger_id)
     {
-        Some(ledger) => {
-            match ledger.peek_message(message_id) {
-                Some(message) => Ok(reply::json(&Message::from(&message))),
-                None => Err(warp::reject::not_found()),
-            }
+        Some(ledger) => match ledger.peek_message(message_id) {
+            Some(message) => Ok(reply::json(&Response::success(Message::from(&message)))),
+            None => Err(warp::reject::not_found()),
         },
         None => Err(warp::reject::not_found()),
     }
@@ -79,12 +78,16 @@ async fn get_message_by_id(
 
 async fn get_nodes(app: Arc<App>) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_ADMIN_COUNT);
-    Ok(reply::json(&NodeList::from(app.admin_service.all_nodes().as_ref())))
+    Ok(reply::json(&Response::success(NodeList::from(
+        app.admin_service.all_nodes(),
+    ))))
 }
 
 async fn get_topics(app: Arc<App>) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_ADMIN_COUNT);
-    Ok(reply::json(&TopicList::from(app.admin_service.all_topics().as_ref())))
+    Ok(reply::json(&Response::success(TopicList::from(
+        app.admin_service.all_topics(),
+    ))))
 }
 
 async fn get_topic_partitions_by_id(
@@ -92,8 +95,9 @@ async fn get_topic_partitions_by_id(
     app: Arc<App>,
 ) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_ADMIN_COUNT);
-    match app.admin_service.partitions_by_topic_id(topic_id) {
-        Some(partitions) => Ok(reply::json(&PartitionList::from(partitions.as_ref()))),
+    match app.admin_service.topic_by_id(topic_id) {
+        Some(topic) => 
+            Ok(reply::json(&Response::success(PartitionList::from(topic.partitions())))),
         None => Err(warp::reject::not_found()),
     }
 }
@@ -104,8 +108,9 @@ async fn get_partition_ledgers_by_id(
     app: Arc<App>,
 ) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_ADMIN_COUNT);
-    match app.admin_service.ledgers_by_partition_id(topic_id, partition_id) {
-        Some(ledgers) => Ok(reply::json(&LedgerList::from(ledgers.as_ref()))),
+    match app.admin_service.partition_by_id(topic_id, partition_id) {
+        Some(partition) =>
+            Ok(reply::json(&Response::success(LedgerList::from(partition.ledgers())))),
         None => Err(warp::reject::not_found()),
     }
 }
@@ -117,8 +122,11 @@ async fn get_ledger_messages_by_id(
     app: Arc<App>,
 ) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_ADMIN_COUNT);
-    match app.admin_service.ledger_by_id(topic_id, partition_id, ledger_id) {
-        Some(ledger) => Ok(reply::json(&ledger.all_message_ids())),
+    match app
+        .admin_service
+        .ledger_by_id(topic_id, partition_id, ledger_id)
+    {
+        Some(ledger) => Ok(reply::json(&Response::success(ledger.all_message_ids()))),
         None => Err(warp::reject::not_found()),
     }
 }

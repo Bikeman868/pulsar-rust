@@ -4,21 +4,23 @@ rest of the application doesn't need to know if state is persisted in memord, on
 or in a database.
 */
 pub mod entity_persister;
-pub mod persisted_entities;
-pub mod log_entries;
 pub mod event_logger;
+pub mod log_entries;
 pub mod logged_events;
+pub mod persisted_entities;
 
 mod file_system;
 mod in_memory;
 
-use log_entries::{LogEntry, LoggedEvent};
-use serde::{Deserialize, Serialize};
-use pulsar_rust_net::data_types::{Timestamp, LedgerId, MessageId, PartitionId, TopicId, VersionNumber};
 use self::entity_persister::{DeleteResult, EntityPersister, LoadResult, SaveResult};
-use self::event_logger::{LogDeleteResult,EventLogger, EventQueryOptions, LogEventResult};
+use self::event_logger::{EventLogger, EventQueryOptions, LogDeleteResult, LogEventResult};
 use crate::model::messages::MessageRef;
 use crate::utils::now_epoc_millis;
+use log_entries::{LogEntry, LoggedEvent};
+use pulsar_rust_net::data_types::{
+    LedgerId, MessageId, PartitionId, Timestamp, TopicId, VersionNumber,
+};
+use serde::{Deserialize, Serialize};
 
 pub enum PersistenceScheme {
     InMemory,
@@ -123,8 +125,9 @@ impl PersistenceLayer {
         self.entity_persister.delete(key)
     }
 
-    pub fn log_event(self: &Self, event: &LoggedEvent,) -> LogEventResult {
-        self.event_logger.log(LogEntry::new(event, now_epoc_millis()))
+    pub fn log_event(self: &Self, event: &LoggedEvent) -> LogEventResult {
+        self.event_logger
+            .log(LogEntry::new(event, now_epoc_millis()))
     }
 
     pub fn log_with_timestamp(

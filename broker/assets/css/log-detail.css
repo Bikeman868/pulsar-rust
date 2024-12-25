@@ -57,6 +57,7 @@ body.log-entries {
     margin-bottom: 10px;
   }
   
+  .event-header,
   .message-ref {
     display: flex;
     flex-wrap: wrap;
@@ -64,6 +65,7 @@ body.log-entries {
     margin-bottom: 15px;
   }
   
+  .event-header > div,
   .message-ref > div {
     flex: 1 1 150px;
   }

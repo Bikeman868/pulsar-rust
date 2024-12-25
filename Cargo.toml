@@ -24,3 +24,6 @@ warp = { version = "*" }
 ctrlc = { version = "*" }
 bytes = { version = "*" }
 statsd = { version = "*" }
+rand = { version = "*" }
+regex = { version = "*" }
+lazy_static = { version = "*" }
