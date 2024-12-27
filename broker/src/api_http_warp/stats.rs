@@ -171,16 +171,16 @@ async fn get_cluster_stats(
 
 #[rustfmt::skip]
 pub fn routes(app: &Arc<App>) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    path!("v1" / "stats" )
+    path!("stats" )
         .and(get()).and(with_accept()).and(with_app(app))
         .and_then(get_cluster_stats)
-    .or(path!("v1" / "stats" / "topic" / TopicId)
+    .or(path!("stats" / "topic" / TopicId)
         .and(get()).and(with_accept()).and(with_app(app))
         .and_then(get_topic_stats))
-    .or(path!("v1" / "stats" / "topic" / TopicId / "partition" / PartitionId)
+    .or(path!("stats" / "topic" / TopicId / "partition" / PartitionId)
         .and(get()).and(with_accept()).and(with_app(app))
         .and_then(get_partition_stats))
-    .or(path!("v1" / "stats" / "topic" / TopicId / "partition" / PartitionId / "ledger" / LedgerId)
+    .or(path!("stats" / "topic" / TopicId / "partition" / PartitionId / "ledger" / LedgerId)
         .and(get()).and(with_accept()).and(with_app(app))
         .and_then(get_ledger_stats))
 }

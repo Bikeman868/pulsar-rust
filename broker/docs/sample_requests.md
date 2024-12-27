@@ -56,13 +56,16 @@ curl "http://localhost:8000/v1/logs?detailed=true" -H "Accept: text/html"
 
 ## Getting information about the internal state of the broker
 
-curl http://localhost:8000/v1/stats
+Note that these endpoints are not versioned because they are not part of the API. They are
+just for debugging issues with you application
 
-curl http://localhost:8000/v1/stats/topic/1
+curl http://localhost:8000/stats
 
-curl http://localhost:8000/v1/stats/topic/1/partition/1
+curl http://localhost:8000/stats/topic/1
 
-curl http://localhost:8000/v1/stats/topic/1/partition/1/ledger/1
+curl http://localhost:8000/stats/topic/1/partition/1
+
+curl http://localhost:8000/stats/topic/1/partition/1/ledger/1
 
 ## Publishing messages
 
