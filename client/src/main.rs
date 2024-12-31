@@ -1,12 +1,21 @@
-//mod hyper_test_client;
+mod hyper_test_client;
 mod socket_test_client;
+// mod net_test_client;
 
-use std::error::Error;
+use std::{env, error::Error};
 
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    socket_test_client::run_test().await
-    // hyper_test_client::run_test().await
+    let args: Vec<String> = env::args().collect();
+    match args.get(1) {
+        Some(s) if s == "socket" => socket_test_client::run_test().await,
+        Some(s) if s == "hyper" => hyper_test_client::run_test().await,
+        // Some(s) if s == "net" => net_test_client::run_test().await,
+        Some(_) | None => {
+            println!("Pass 'socket', 'hyper', or 'net' on the command line");
+            Ok(())
+        }
+    }
 }
