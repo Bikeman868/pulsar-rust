@@ -181,12 +181,12 @@ I have not undertaken a comprehensive benchmarking exercise, or done any apples 
 Apache Pulsar, but I have been very mindful of performance, and I have keeping an eye on the throughput 
 capacity troughout the development, and this is what I observed:
 
-|   | M1 MacBook Pro | Microsoft Surface 3 |
-| --- | --- |
+|   | Microsoft Surface 3 | M1 MacBook Pro |
+| --- | --- | --- |
 | CPU | Intel Core i5 | Apple M1 Pro |
 | OS | Windows 10 | macOS Sequoia |
-| CPU cores | 10 | 4 |
-| CPU clock |2.4GHz | |
+| CPU cores | 4 | 10 |
+| CPU clock |2.4GHz | 3.2GHz |
 | Memory | 8GB | 16GB |
 | JSON + Http API | 2,500 | 30,000 |
 | Bin + TCP API | 6,000 | TBM |
