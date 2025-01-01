@@ -9,13 +9,13 @@ use std::{
         self, 
     }
 };
-
+use log::info;
 use pulsar_rust_net::sockets::buffer_pool::BufferPool;
-use crate::connection::client_connection::ClientConnectionThread;
+use crate::api_bin_sockets::connection_thread::ConnectionThread;
 
 pub(crate) type ClientMessage = Vec<u8>;
 
-pub(crate) struct Client {
+pub struct Client {
     stop_signal: Arc<AtomicBool<>>,
     sender: Sender<ClientMessage>,
     receiver: Receiver<ClientMessage>,
@@ -23,7 +23,7 @@ pub(crate) struct Client {
 
 impl Client {
     pub fn new(buffer_pool: &Arc<BufferPool>, authority: &str) -> Self {
-        dbg!(format!("Client: Connecting to {authority}"));
+        info!("Client: Connecting to {authority}");
         let stream = TcpStream::connect(authority).expect(&format!("Client: Failed to connect to {authority}"));
         let buffer_pool = buffer_pool.clone();
         let stop_signal = Arc::new(AtomicBool::new(false));
@@ -31,7 +31,7 @@ impl Client {
         let (tx_sender, tx_receiver) = channel::<ClientMessage>();
         let (rx_sender, rx_receiver) = channel::<ClientMessage>();
 
-        let thread = ClientConnectionThread::new(
+        let thread = ConnectionThread::new(
             tx_receiver,
             rx_sender,
             stream,
@@ -58,7 +58,7 @@ impl Client {
 
 impl Drop for Client {
     fn drop(&mut self) {
-        dbg!(format!("Client: Signalling threads to stop"));
+        info!("Client: Signalling threads to stop");
         self.stop_signal.store(true, Ordering::Relaxed);
     }
 }

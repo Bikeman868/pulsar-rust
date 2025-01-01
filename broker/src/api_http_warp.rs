@@ -13,6 +13,7 @@ use std::{
     sync::{atomic::Ordering, Arc},
 };
 use warp::{Filter, Rejection, Reply};
+use log::info;
 
 mod admin; // CRUD operations on nodes, topics, subscriptions and partitions
 mod assets; // Serving static assets like css files
@@ -40,7 +41,6 @@ pub fn routes(app: &Arc<App>) -> impl Filter<Extract = impl Reply, Error = Rejec
     .or(admin::routes(app))
     .or(stats::routes(app))
     .or(logs::routes(app))
-    .or(assets::routes(app))
     .or(docs::routes())
 }
 
@@ -55,7 +55,7 @@ pub fn serve(app: &Arc<App>, addr: SocketAddrV4) -> impl Future<Output = ()> {
 
     let (_addr, server) = warp::serve(routes(app)).bind_with_graceful_shutdown(addr, stop_future);
 
-    println!("Web service ready on {addr}");
+    info!("Http API listening on {addr}");
 
     server
 }

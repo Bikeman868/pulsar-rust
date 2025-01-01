@@ -1,12 +1,7 @@
 use config::Config;
+use log::LevelFilter;
 use pulsar_rust_broker::{
-    api_http_warp,
-    data::DataLayer,
-    model::cluster::{Cluster, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT},
-    observability::Metrics,
-    persistence::{PersistenceLayer, PersistenceScheme},
-    services::{admin_service::AdminService, pub_service::PubService, stats_service::StatsService, sub_service::SubService},
-    App,
+    api_bin_sockets, api_http_warp, data::DataLayer, model::cluster::{Cluster, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT}, observability::Metrics, persistence::{PersistenceLayer, PersistenceScheme}, services::{admin_service::AdminService, pub_service::PubService, stats_service::StatsService, sub_service::SubService}, App
 };
 use std::{
     collections::HashMap,
@@ -22,6 +17,10 @@ use tokio::task;
 
 #[tokio::main]
 async fn main() {
+    let mut clog = colog::default_builder();
+    clog.filter_level(LevelFilter::Info);
+    clog.init();
+
     // Extract pod specific configuration from command line options
     let args: Vec<String> = env::args().collect();
 
@@ -176,18 +175,23 @@ async fn main() {
     // Start sending metrics to StatsD
     task::spawn(send_metrics(Arc::clone(&app)));
 
-    // Construct endpoints to listen on
+    // Get endpoint configuration from DB
     let my_node = cluster.my_node();
-    let admin_endpoint = SocketAddrV4::new(
-        Ipv4Addr::from_str(&my_node.ip_address()).expect(&format!(
-            "Failed to parse {} as an IPv4 address",
-            my_node.ip_address()
-        )),
-        my_node.admin_port(),
-    );
+    let ip_address = Ipv4Addr::from_str(&my_node.ip_address()).expect(&format!(
+        "Failed to parse {} as an IPv4 address",
+        my_node.ip_address()
+    ));
 
-    // Block the main thread until the Http server stops running
+    // Serve binary serialized requests over TCP/IP
+    let admin_endpoint = SocketAddrV4::new(ip_address, my_node.pubsub_port());
+    let api_bin_handle = api_bin_sockets::serve(&app, admin_endpoint);
+
+    // Serve requests over http using warp and wait for it to terminate
+    let admin_endpoint = SocketAddrV4::new(ip_address, my_node.admin_port());
     api_http_warp::serve(&app, admin_endpoint).await;
+
+    // Wait for the bin api to terminate
+    api_bin_handle.join().unwrap();
 }
 
 async fn send_metrics(app: Arc<App>) {

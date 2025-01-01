@@ -2,11 +2,11 @@ use std::{
     net::TcpStream, 
     sync::{
         atomic::{AtomicBool, Ordering}, 
-        mpsc::{Receiver, Sender, TryRecvError}, 
+        mpsc::{Receiver, RecvTimeoutError, Sender, TryRecvError}, 
         Arc
-    }, 
+    }, time::Duration, 
 };
-
+use log::{error, info, debug};
 use pulsar_rust_net::sockets::{
     buffer_pool::BufferPool, 
     connection::{
@@ -18,7 +18,7 @@ use pulsar_rust_net::sockets::{
 use super::client::ClientMessage;
 
 // A thread that moves client messages beteen a Tcp stream and a pair of channels
-pub(crate) struct ClientConnectionThread {
+pub(crate) struct ConnectionThread {
     receiver: Receiver<ClientMessage>, 
     sender: Sender<ClientMessage>, 
     stream: TcpStream, 
@@ -26,7 +26,7 @@ pub(crate) struct ClientConnectionThread {
     stop_signal: Arc<AtomicBool>,
 }
 
-impl ClientConnectionThread {
+impl ConnectionThread {
     pub(crate) fn new(
         receiver: Receiver<ClientMessage>, 
         sender: Sender<ClientMessage>, 
@@ -44,31 +44,31 @@ impl ClientConnectionThread {
     }
 
     pub(crate) fn run(mut self: Self) {
-        dbg!("ClientConnection: Starting");
+        info!("ConnectionThread: Starting");
         while !self.stop_signal.load(Ordering::Relaxed) {
             self.try_send();
             self.try_receive();
         }
-        dbg!("ClientConnection: Stopping");
+        info!("ConnectionThread: Stopping");
     }
 
     fn try_send(self: &mut Self) {
-        match self.receiver.try_recv() {
+        match self.receiver.recv_timeout(Duration::from_millis(10)) {
             Ok(message) => {
-                dbg!(format!("ClientConnection: Received message from channel: {message:?}"));
+                // debug!("ConnectionThread: Received message from channel: {message:?}");
                 match send_tcp(message, &mut self.stream, &self.buffer_pool) {
                     Ok(_) => {
-                        dbg!(format!("ClientConnection: Sent message to Tcp stream"));
+                        // debug!("ConnectionThread: Sent message to Tcp stream");
                     }
                     Err(e) => {
-                        self.stop(&format!("ClientConnection: Failed to send message to Tcp stream: {e:?}"));
+                        self.stop(&format!("ConnectionThread: Failed to send message to Tcp stream: {e:?}"));
                     }
                 }
             }
             Err(e) => {
                 match e {
-                    TryRecvError::Empty => {}
-                    TryRecvError::Disconnected => self.stop(&"ClientConnection: Receiver channel disconnected, stopping client connection"),
+                    RecvTimeoutError::Timeout => {}
+                    RecvTimeoutError::Disconnected => self.stop(&"ConnectionThread: Receiver channel disconnected, stopping client connection"),
                 }
             }
         }
@@ -77,20 +77,22 @@ impl ClientConnectionThread {
     fn try_receive(self: &mut Self) {
         match try_receive_tcp(&mut self.stream, &self.buffer_pool) {
             Ok(Some(buffer)) => {
-                dbg!(format!("ClientConnection: Received message from Tcp stream: {buffer:?}"));
+                // debug!("ConnectionThread: Received message from Tcp stream: {buffer:?}");
                 match self.sender.send(buffer) {
-                    Ok(_) => { dbg!(format!("ClientConnection: Sent received message to channel")); }
-                    Err(e) => self.stop(&format!("ClientConnection: Failed to write received message to channel: {e}")),
+                    Ok(_) => { 
+                        // debug!("ConnectionThread: Sent received message to channel");
+                    }
+                    Err(e) => self.stop(&format!("ConnectionThread: Failed to write received message to channel: {e}")),
                 }
             }
             Ok(None) => (),
-            Err(e) => self.stop(&format!("ClientConnection: Failed read message from Tcp stream: {e:?}")),
+            Err(e) => self.stop(&format!("ConnectionThread: Failed read message from Tcp stream: {e:?}")),
         }
     }
 
     fn stop(self: &Self, msg: &str) {
-        dbg!(msg);
-        dbg!(format!("ClientConnection: Signalling threads to stop"));
+        error!("{}", msg);
+        // debug!("ConnectionThread: Signalling threads to stop");
         self.stop_signal.store(true, Ordering::Relaxed);
     }
 }

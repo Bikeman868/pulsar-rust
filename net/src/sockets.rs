@@ -8,4 +8,4 @@ pub mod broker_to_broker;
 pub mod client_to_broker;
 pub mod broker_to_client;
 
-pub(crate) type MessageLength = u16;
+pub type MessageLength = u16;

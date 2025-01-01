@@ -9,6 +9,8 @@ serde.workspace = true
 rmp-serde.workspace = true
 bytes.workspace = true
 rand.workspace = true
+log.workspace = true
+colog.workspace = true
 
 hyper = { version = "1", features = ["http1", "client"] }
 tokio = { version = "1", features = ["full"] }
