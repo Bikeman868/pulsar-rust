@@ -174,3 +174,36 @@ connections. You can only use this if you import the crate into a Rust applicati
 
 This folder contins a Rust crate that is shared between the client and the broker. It defines the wire protocols
 and data transfer objects that the client uses to communicate with the broker.
+
+## Performance
+
+I have not undertaken a comprehensive benchmarking exercise, or done any apples for apples comparisons with
+Apache Pulsar, but I have been very mindful of performance, and I have keeping an eye on the throughput 
+capacity troughout the development, and this is what I observed:
+
+|   | M1 MacBook Pro | Microsoft Surface 3 |
+| --- | --- |
+| CPU | Intel Core i5 | Apple M1 Pro |
+| OS | Windows 10 | macOS Sequoia |
+| CPU cores | 10 | 4 |
+| CPU clock |2.4GHz | |
+| Memory | 8GB | 16GB |
+| JSON + Http API | 2,500 | 30,000 |
+| Bin + TCP API | 6,000 | TBM |
+
+Throughput rates in the above table are messages per second that were published by the client, processed by the
+broker, delivered to the consumer, and acknowledged back to the broker.
+
+These tests were run with the producer, consumer and broker all running on the same computer. This is more load
+on the CPU and memory that you would expect in a real-world deployment where these applications would typically
+run on different machines, but removes most of the networking overhead by using localhost.
+
+An interesting side note about network impact on throughout. When usig the JSON over Http 1.1 API, you can only have
+one in-flight request per connection. If for example your network has 100ms latency, then you can only make 10 
+requests per second per connection, because Http 1.1 waits for the response to a request to complete before a new
+request can be started.
+
+When designing the binary serialization API for this application, I made the request and response channels fully
+decoupled, so that you can send thousands of requests over a connection before receiving the first response. This
+massively increases the maximum throughput per connection on high latency connections, but it's not unlimited
+because TCP/IP also has limitations on how many IP packets can be pending ack.
