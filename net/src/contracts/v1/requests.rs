@@ -2,9 +2,7 @@
 Version 1 data contracts for serializing request body
 */
 
-use crate::data_types::{
-    ConsumerId, PartitionId, SubscriptionId, Timestamp, TopicId,
-};
+use crate::data_types::{ConsumerId, PartitionId, SubscriptionId, Timestamp, TopicId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

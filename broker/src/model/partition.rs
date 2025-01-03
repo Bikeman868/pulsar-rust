@@ -1,12 +1,12 @@
 use super::{
-    ledger::{Ledger, LedgerList, LedgerRef, LedgerStats}, Entity, EntityList, EntityRef
+    ledger::{Ledger, LedgerList, LedgerRef, LedgerStats},
+    Entity, EntityList, EntityRef,
 };
-use crate::{data::{
-    DataAddResult, DataLayer
-}, formatting::plain_text_builder::{PlainTextBuilder, ToPlainText}};
-use pulsar_rust_net::data_types::{
-    LedgerId, NodeId, PartitionId, TopicId
+use crate::{
+    data::{DataAddResult, DataLayer},
+    formatting::plain_text_builder::{PlainTextBuilder, ToPlainText},
 };
+use pulsar_rust_net::data_types::{LedgerId, NodeId, PartitionId, TopicId};
 use serde::Serialize;
 use std::sync::Arc;
 
@@ -66,8 +66,10 @@ pub struct Partition {
     ledgers: LedgerList,
 }
 
-impl Entity<PartitionId> for Partition { 
-    fn key(self: &Self) -> PartitionId { self.partition_id }
+impl Entity<PartitionId> for Partition {
+    fn key(self: &Self) -> PartitionId {
+        self.partition_id
+    }
 }
 
 pub type PartitionRef = EntityRef<PartitionId, Partition>;
@@ -83,7 +85,7 @@ impl Partition {
     pub fn partition_id(self: &Self) -> PartitionId {
         self.partition_id
     }
-    pub fn ledgers(self: &Self) ->  &LedgerList {
+    pub fn ledgers(self: &Self) -> &LedgerList {
         &self.ledgers
     }
 
@@ -93,9 +95,9 @@ impl Partition {
 
         if let Some(current_ledger_id) = data_layer.get_last_ledger_id(&partition) {
             let ledgers =
-                EntityList::from_iter(partition.ledger_ids.iter().map(
-                |&ledger_id| Ledger::new(data_layer, topic_id, partition_id, ledger_id, 1)),
-            );
+                EntityList::from_iter(partition.ledger_ids.iter().map(|&ledger_id| {
+                    Ledger::new(data_layer, topic_id, partition_id, ledger_id, 1)
+                }));
 
             Self {
                 topic_id,
@@ -112,15 +114,18 @@ impl Partition {
     pub fn refresh(self: &mut Self, _data_layer: &Arc<DataLayer>) {}
 
     pub fn stats(self: &Self) -> PartitionStats {
-        let ledgers = self.ledgers.values().iter()
+        let ledgers = self
+            .ledgers
+            .values()
+            .iter()
             .map(|ledger_ref| PartitionLedgerStats {
-                    ledger_id: ledger_ref.ledger_id(),
-                    ledger_stats: ledger_ref.stats(),
+                ledger_id: ledger_ref.ledger_id(),
+                ledger_stats: ledger_ref.stats(),
             })
             .collect();
         PartitionStats {
             node_id: self.node_id,
-            ledgers
+            ledgers,
         }
     }
 
@@ -140,9 +145,13 @@ impl Partition {
     ) -> DataAddResult<LedgerRef> {
         match data_layer.add_ledger(self.topic_id, self.partition_id, node_id) {
             Ok(ledger) => {
-                let ledger_ref = EntityRef::new(
-                    Ledger::new(data_layer, self.topic_id, self.partition_id, ledger.ledger_id, 1)
-                );
+                let ledger_ref = EntityRef::new(Ledger::new(
+                    data_layer,
+                    self.topic_id,
+                    self.partition_id,
+                    ledger.ledger_id,
+                    1,
+                ));
                 self.ledgers.insert_ref(ledger_ref.clone());
                 Ok(ledger_ref)
             }

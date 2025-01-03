@@ -1,7 +1,16 @@
 use config::Config;
 use log::LevelFilter;
 use pulsar_rust_broker::{
-    api_bin_sockets, api_http_warp, data::DataLayer, model::cluster::{Cluster, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT}, observability::Metrics, persistence::{PersistenceLayer, PersistenceScheme}, services::{admin_service::AdminService, pub_service::PubService, stats_service::StatsService, sub_service::SubService}, App
+    api_bin_sockets, api_http_warp,
+    data::DataLayer,
+    model::cluster::{Cluster, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT},
+    observability::Metrics,
+    persistence::{PersistenceLayer, PersistenceScheme},
+    services::{
+        admin_service::AdminService, pub_service::PubService, stats_service::StatsService,
+        sub_service::SubService,
+    },
+    App,
 };
 use std::{
     collections::HashMap,
@@ -19,6 +28,8 @@ use tokio::task;
 async fn main() {
     let mut clog = colog::default_builder();
     clog.filter_level(LevelFilter::Info);
+    #[cfg(debug_assertions)]
+    clog.filter_level(LevelFilter::Debug);
     clog.init();
 
     // Extract pod specific configuration from command line options

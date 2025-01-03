@@ -1,22 +1,20 @@
-use std::{
-    net::TcpStream, 
-    sync::{
-        atomic::{AtomicBool, Ordering}, 
-        mpsc::{channel, Receiver, RecvError, SendError, Sender, TryRecvError}, 
-        Arc
-    }, 
-    thread::{
-        self, 
-    }
-};
+use crate::api_bin_sockets::connection_thread::ConnectionThread;
 use log::info;
 use pulsar_rust_net::sockets::buffer_pool::BufferPool;
-use crate::api_bin_sockets::connection_thread::ConnectionThread;
+use std::{
+    net::TcpStream,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{channel, Receiver, RecvError, SendError, Sender, TryRecvError},
+        Arc,
+    },
+    thread::{self},
+};
 
 pub(crate) type ClientMessage = Vec<u8>;
 
 pub struct Client {
-    stop_signal: Arc<AtomicBool<>>,
+    stop_signal: Arc<AtomicBool>,
     sender: Sender<ClientMessage>,
     receiver: Receiver<ClientMessage>,
 }
@@ -24,23 +22,22 @@ pub struct Client {
 impl Client {
     pub fn new(buffer_pool: &Arc<BufferPool>, authority: &str) -> Self {
         info!("Client: Connecting to {authority}");
-        let stream = TcpStream::connect(authority).expect(&format!("Client: Failed to connect to {authority}"));
-        let buffer_pool = buffer_pool.clone();
+        let stream = TcpStream::connect(authority)
+            .expect(&format!("Client: Failed to connect to {authority}"));
         let stop_signal = Arc::new(AtomicBool::new(false));
 
         let (tx_sender, tx_receiver) = channel::<ClientMessage>();
         let (rx_sender, rx_receiver) = channel::<ClientMessage>();
 
-        let thread = ConnectionThread::new(
-            tx_receiver,
-            rx_sender,
-            stream,
-            &buffer_pool,
-            &stop_signal,
-        );
-        thread::spawn(move||thread.run());
+        let thread =
+            ConnectionThread::new(tx_receiver, rx_sender, stream, &buffer_pool, &stop_signal);
+        thread::spawn(move || thread.run());
 
-        Self { stop_signal, sender: tx_sender, receiver: rx_receiver }
+        Self {
+            stop_signal,
+            sender: tx_sender,
+            receiver: rx_receiver,
+        }
     }
 
     pub fn try_recv(self: &Self) -> Result<ClientMessage, TryRecvError> {

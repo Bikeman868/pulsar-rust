@@ -188,8 +188,8 @@ capacity troughout the development, and this is what I observed:
 | CPU cores | 4 | 10 |
 | CPU clock |2.4GHz | 3.2GHz |
 | Memory | 8GB | 16GB |
-| JSON + Http API | 2,500 | 30,000 |
-| Bin + TCP API | 6,000 | TBM |
+| JSON + Http API | 7,100 | 30,000 |
+| Bin + TCP API | 9,400 | TBM |
 
 Throughput rates in the above table are messages per second that were published by the client, processed by the
 broker, delivered to the consumer, and acknowledged back to the broker.

@@ -1,6 +1,6 @@
 mod hyper_test_client;
-mod socket_test_client;
 mod net_test_client;
+mod socket_test_client;
 
 use std::{env, error::Error};
 

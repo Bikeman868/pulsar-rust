@@ -6,6 +6,7 @@ variaty of other tools and technologies. For high performance applications, use 
 */
 
 use crate::App;
+use log::info;
 use std::{
     convert::Infallible,
     future::Future,
@@ -13,15 +14,14 @@ use std::{
     sync::{atomic::Ordering, Arc},
 };
 use warp::{Filter, Rejection, Reply};
-use log::info;
 
 mod admin; // CRUD operations on nodes, topics, subscriptions and partitions
 mod assets; // Serving static assets like css files
 mod docs; // Documentation pages
 mod html; // Trait implementations to render html snippets
 mod logs; // Query the transaction logs
-mod stats; // Visibility into the internal state of the broker
 mod publisher; // Http API for publishing messages
+mod stats; // Visibility into the internal state of the broker
 mod subscriber; // Http API for consuming messages
 
 /// This warp filter injects the application context so that handlers can access services

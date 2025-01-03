@@ -1,9 +1,9 @@
 use crate::{
-    data::DataLayer, formatting::plain_text_builder::{PlainTextBuilder, ToPlainText}, utils::now_epoc_millis
+    data::DataLayer,
+    formatting::plain_text_builder::{PlainTextBuilder, ToPlainText},
+    utils::now_epoc_millis,
 };
-use pulsar_rust_net::data_types::{
-    LedgerId, MessageId, NodeId, PartitionId, Timestamp, TopicId
-};
+use pulsar_rust_net::data_types::{LedgerId, MessageId, NodeId, PartitionId, Timestamp, TopicId};
 use serde::Serialize;
 use std::{
     collections::HashMap,
@@ -55,8 +55,10 @@ pub struct Ledger {
     create_timestamp: Timestamp,
 }
 
-impl Entity<LedgerId> for Ledger { 
-    fn key(self: &Self) -> LedgerId { self.ledger_id }
+impl Entity<LedgerId> for Ledger {
+    fn key(self: &Self) -> LedgerId {
+        self.ledger_id
+    }
 }
 
 pub type LedgerRef = EntityRef<LedgerId, Ledger>;
@@ -124,18 +126,15 @@ impl Ledger {
         let messages: HashMap<MessageId, PublishedMessage> = HashMap::with_capacity(10000);
         let timestamp = now_epoc_millis();
 
-        let stats = LedgerStats { 
-            message_count: 0, 
+        let stats = LedgerStats {
+            message_count: 0,
             unacked_count: 0,
             next_message_id,
             last_update_timestamp: timestamp,
         };
 
         Self {
-            state: RwLock::new(LedgerState {
-                messages,
-                stats,
-            }),
+            state: RwLock::new(LedgerState { messages, stats }),
             topic_id,
             partition_id,
             ledger_id,
@@ -146,7 +145,7 @@ impl Ledger {
 
     pub fn refresh(self: &mut Self, _data_layer: &Arc<DataLayer>) {}
 
-    pub fn stats(self: &Self) -> LedgerStats { 
+    pub fn stats(self: &Self) -> LedgerStats {
         self.state.read().unwrap().stats
     }
 
@@ -175,9 +174,7 @@ impl Ledger {
 
     pub fn get_message(self: &Self, message_id: &MessageId) -> Option<PublishedMessage> {
         let state = self.state.read().unwrap();
-        Some(PublishedMessage::clone(
-            state.messages.get(message_id)?,
-        ))
+        Some(PublishedMessage::clone(state.messages.get(message_id)?))
     }
 
     pub fn ack(self: &Self, message_id: &MessageId) {

@@ -7,40 +7,46 @@ use serde::{Deserialize, Serialize};
 
 use super::log_entries::LogEntry;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Deserialize, Serialize)]
 pub struct AckEvent {
     pub message_ref: MessageRef,
     pub subscription_id: SubscriptionId,
     pub consumer_id: ConsumerId,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Deserialize, Serialize)]
 pub struct NackEvent {
     pub message_ref: MessageRef,
     pub subscription_id: SubscriptionId,
     pub consumer_id: ConsumerId,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Deserialize, Serialize)]
 pub struct PublishEvent {
     pub message: PublishedMessage,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Deserialize, Serialize)]
 pub struct NewConsumerEvent {
     pub topic_id: TopicId,
     pub subscription_id: SubscriptionId,
     pub consumer_id: ConsumerId,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Deserialize, Serialize)]
 pub struct DropConsumerEvent {
     pub topic_id: TopicId,
     pub subscription_id: SubscriptionId,
     pub consumer_id: ConsumerId,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Deserialize, Serialize)]
 pub struct KeyAffinityEvent {
     pub topic_id: TopicId,
     pub subscription_id: SubscriptionId,

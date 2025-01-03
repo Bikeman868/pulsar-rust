@@ -82,7 +82,12 @@ impl Subscription {
         SubscriptionStats {
             queued_count: self.queued_messages.read().unwrap().len(),
             unacked_count: self.delivered_messages.read().unwrap().len(),
-            assigned_count: self.assigned_messages.read().unwrap().iter().fold(0, |sum, entry|sum + entry.1.len()),
+            assigned_count: self
+                .assigned_messages
+                .read()
+                .unwrap()
+                .iter()
+                .fold(0, |sum, entry| sum + entry.1.len()),
             affinity_count: self.affinity_map.read().unwrap().len(),
         }
     }

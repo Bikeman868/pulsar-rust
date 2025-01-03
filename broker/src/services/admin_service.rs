@@ -45,7 +45,7 @@ impl AdminService {
     }
 
     pub fn topic_by_name(self: &Self, name: &str) -> Option<TopicRef> {
-        self.cluster.topics().find(|topic|topic.name() == name)
+        self.cluster.topics().find(|topic| topic.name() == name)
     }
 
     pub fn partition_by_id(

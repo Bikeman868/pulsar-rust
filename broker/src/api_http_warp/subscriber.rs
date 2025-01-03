@@ -83,20 +83,36 @@ async fn ack_message(body: requests::Ack, app: Arc<App>) -> Result<impl Reply, R
             .sub_service
             .ack(body.message_ack_key, body.subscription_id, body.consumer_id)
         {
-            Ok(found) => if found {
-                responses::Response::success(responses::AckResult {})
-            } else {
-                responses::Response::error(&String::from("No message found with this id, maybe this was acked already"))
-            },
-            Err(err) =>  match err {
-                SubError::Error(msg) => responses::Response::error(&msg),
-                SubError::TopicNotFound => responses::Response::error(&String::from("No topic found with this id")),
-                SubError::SubscriptionNotFound => responses::Response::error(&String::from("No subscription found with this id")),
-                SubError::PartitionNotFound => responses::Response::error(&String::from("No partition found with this id")),
-                SubError::LedgerNotFound => responses::Response::error(&String::from("No ledger found with this id")),
-                SubError::MessageNotFound => responses::Response::error(&String::from("No message found with this id")),
-                SubError::NoneAvailable => responses::Response::error(&String::from("No data was available")),
+            Ok(found) => {
+                if found {
+                    responses::Response::success(responses::AckResult {})
+                } else {
+                    responses::Response::error(&String::from(
+                        "No message found with this id, maybe this was acked already",
+                    ))
+                }
             }
+            Err(err) => match err {
+                SubError::Error(msg) => responses::Response::error(&msg),
+                SubError::TopicNotFound => {
+                    responses::Response::error(&String::from("No topic found with this id"))
+                }
+                SubError::SubscriptionNotFound => {
+                    responses::Response::error(&String::from("No subscription found with this id"))
+                }
+                SubError::PartitionNotFound => {
+                    responses::Response::error(&String::from("No partition found with this id"))
+                }
+                SubError::LedgerNotFound => {
+                    responses::Response::error(&String::from("No ledger found with this id"))
+                }
+                SubError::MessageNotFound => {
+                    responses::Response::error(&String::from("No message found with this id"))
+                }
+                SubError::NoneAvailable => {
+                    responses::Response::error(&String::from("No data was available"))
+                }
+            },
         };
     Ok(reply::json(&response))
 }
@@ -108,20 +124,36 @@ async fn nack_message(body: requests::Nack, app: Arc<App>) -> Result<impl Reply,
             .sub_service
             .nack(body.message_ack_key, body.subscription_id, body.consumer_id)
         {
-            Ok(found) => if found {
-                responses::Response::success(responses::AckResult {})
-            } else {
-                responses::Response::error(&String::from("No message found with this id, maybe this was acked already"))
-            },
-            Err(err) =>  match err {
-                SubError::Error(msg) => responses::Response::error(&msg),
-                SubError::TopicNotFound => responses::Response::error(&String::from("No topic found with this id")),
-                SubError::SubscriptionNotFound => responses::Response::error(&String::from("No subscription found with this id")),
-                SubError::PartitionNotFound => responses::Response::error(&String::from("No partition found with this id")),
-                SubError::LedgerNotFound => responses::Response::error(&String::from("No ledger found with this id")),
-                SubError::MessageNotFound => responses::Response::error(&String::from("No message found with this id")),
-                SubError::NoneAvailable => responses::Response::error(&String::from("No data was available")),
+            Ok(found) => {
+                if found {
+                    responses::Response::success(responses::AckResult {})
+                } else {
+                    responses::Response::error(&String::from(
+                        "No message found with this id, maybe this was acked already",
+                    ))
+                }
             }
+            Err(err) => match err {
+                SubError::Error(msg) => responses::Response::error(&msg),
+                SubError::TopicNotFound => {
+                    responses::Response::error(&String::from("No topic found with this id"))
+                }
+                SubError::SubscriptionNotFound => {
+                    responses::Response::error(&String::from("No subscription found with this id"))
+                }
+                SubError::PartitionNotFound => {
+                    responses::Response::error(&String::from("No partition found with this id"))
+                }
+                SubError::LedgerNotFound => {
+                    responses::Response::error(&String::from("No ledger found with this id"))
+                }
+                SubError::MessageNotFound => {
+                    responses::Response::error(&String::from("No message found with this id"))
+                }
+                SubError::NoneAvailable => {
+                    responses::Response::error(&String::from("No data was available"))
+                }
+            },
         };
     Ok(reply::json(&response))
 }

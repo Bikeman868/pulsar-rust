@@ -85,7 +85,8 @@ async fn fetch(addr: Arc<String>, req: Arc<Request<Empty<Bytes>>>) -> super::Res
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
+//#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Debug)]
 struct HttpError {
     pub status: StatusCode,
 }

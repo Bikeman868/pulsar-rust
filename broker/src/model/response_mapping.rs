@@ -5,21 +5,16 @@ Note that the pulsar_rust_net crate always maps requests and responses to the la
 and this source file only has to map the latest version of the contract onto the internal model.
 */
 use super::{
-    ledger::{LedgerList, LedgerRef}, 
-    messages::PublishedMessage, 
-    node::{NodeList, NodeRef}, 
-    partition::{PartitionList, PartitionRef}, 
+    ledger::{LedgerList, LedgerRef},
+    messages::PublishedMessage,
+    node::{NodeList, NodeRef},
+    partition::{PartitionList, PartitionRef},
     topic::{TopicList, TopicRef},
 };
 use crate::persistence::{
     log_entries::{LogEntry, LoggedEvent},
     logged_events::{
-        AckEvent, 
-        DropConsumerEvent, 
-        KeyAffinityEvent, 
-        NackEvent,
-        NewConsumerEvent,
-        PublishEvent,
+        AckEvent, DropConsumerEvent, KeyAffinityEvent, NackEvent, NewConsumerEvent, PublishEvent,
     },
 };
 use pulsar_rust_net::contracts::v1::responses;
@@ -126,10 +121,11 @@ impl From<&PublishedMessage> for responses::Message {
 impl From<&NodeList> for responses::NodeList {
     fn from(nodes: &NodeList) -> Self {
         Self {
-            nodes: nodes.values().iter().map(
-                |node_ref| responses::NodeSummary::from(node_ref)
-            )
-            .collect(),
+            nodes: nodes
+                .values()
+                .iter()
+                .map(|node_ref| responses::NodeSummary::from(node_ref))
+                .collect(),
         }
     }
 }
@@ -137,10 +133,11 @@ impl From<&NodeList> for responses::NodeList {
 impl From<&TopicList> for responses::TopicList {
     fn from(topics: &TopicList) -> Self {
         Self {
-            topics: topics.values().iter().map(
-                |topic| responses::TopicSummary::from(topic)
-            )
-            .collect(),
+            topics: topics
+                .values()
+                .iter()
+                .map(|topic| responses::TopicSummary::from(topic))
+                .collect(),
         }
     }
 }
@@ -148,10 +145,11 @@ impl From<&TopicList> for responses::TopicList {
 impl From<&PartitionList> for responses::PartitionList {
     fn from(partitions: &PartitionList) -> Self {
         Self {
-            partitions: partitions.values().iter().map(
-                |p| responses::PartitionSummary::from(p)
-            )
-            .collect(),
+            partitions: partitions
+                .values()
+                .iter()
+                .map(|p| responses::PartitionSummary::from(p))
+                .collect(),
         }
     }
 }
@@ -159,10 +157,11 @@ impl From<&PartitionList> for responses::PartitionList {
 impl From<&LedgerList> for responses::LedgerList {
     fn from(ledgers: &LedgerList) -> Self {
         Self {
-            ledgers: ledgers.values().iter().map(
-                |ledger| responses::LedgerSummary::from(ledger)
-            )
-            .collect(),
+            ledgers: ledgers
+                .values()
+                .iter()
+                .map(|ledger| responses::LedgerSummary::from(ledger))
+                .collect(),
         }
     }
 }
@@ -172,7 +171,8 @@ impl From<&TopicRef> for responses::TopicPartitionMap {
         Self {
             topic: responses::TopicSummary::from(topic),
             partitions: topic
-                .partitions().values()
+                .partitions()
+                .values()
                 .iter()
                 .map(|partition| responses::PartitionDetail::from(partition))
                 .collect(),

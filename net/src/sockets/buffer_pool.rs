@@ -25,25 +25,39 @@ impl BufferPool {
     }
 
     pub fn get(self: &Self, size: MessageLength) -> Vec<u8> {
-        if size <= S_CAPACICY { BufferPool::get_internal(&self.s, S_CAPACICY, size) }
-        else if size <= M_CAPACICY { BufferPool::get_internal(&self.m, M_CAPACICY, size) }
-        else if size <= L_CAPACICY { BufferPool::get_internal(&self.l, L_CAPACICY, size) }
-        else { BufferPool::get_internal(&self.xl, XL_CAPACICY, size) }
+        if size <= S_CAPACICY {
+            BufferPool::get_internal(&self.s, S_CAPACICY, size)
+        } else if size <= M_CAPACICY {
+            BufferPool::get_internal(&self.m, M_CAPACICY, size)
+        } else if size <= L_CAPACICY {
+            BufferPool::get_internal(&self.l, L_CAPACICY, size)
+        } else {
+            BufferPool::get_internal(&self.xl, XL_CAPACICY, size)
+        }
     }
 
     pub fn reuse(self: &Self, buffer: Vec<u8>) {
         let capacity = buffer.capacity() as MessageLength;
-        if capacity <= S_CAPACICY { BufferPool::reuse_internal(&self.s, buffer) }
-        else if capacity <= M_CAPACICY { BufferPool::reuse_internal(&self.m, buffer) }
-        else if capacity <= L_CAPACICY { BufferPool::reuse_internal(&self.l, buffer) }
-        else { BufferPool::reuse_internal(&self.xl, buffer); }
+        if capacity <= S_CAPACICY {
+            BufferPool::reuse_internal(&self.s, buffer)
+        } else if capacity <= M_CAPACICY {
+            BufferPool::reuse_internal(&self.m, buffer)
+        } else if capacity <= L_CAPACICY {
+            BufferPool::reuse_internal(&self.l, buffer)
+        } else {
+            BufferPool::reuse_internal(&self.xl, buffer);
+        }
     }
 
     fn reuse_internal(pool: &RwLock<Vec<Vec<u8>>>, buffer: Vec<u8>) {
         pool.write().unwrap().push(buffer);
     }
 
-    fn get_internal(pool: &RwLock<Vec<Vec<u8>>>, capacity: MessageLength, size: MessageLength) -> Vec<u8> {
+    fn get_internal(
+        pool: &RwLock<Vec<Vec<u8>>>,
+        capacity: MessageLength,
+        size: MessageLength,
+    ) -> Vec<u8> {
         let mut pool = pool.write().unwrap();
         let mut buffer = match pool.pop() {
             Some(buffer) => buffer,

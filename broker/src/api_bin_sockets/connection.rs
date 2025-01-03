@@ -1,14 +1,10 @@
-use std::
-    sync::{
-        atomic::{AtomicBool, Ordering}, 
-        mpsc::Sender, 
-        Arc
-    }
-;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    mpsc::Sender,
+    Arc,
+};
 
-use super::
-    server::{ConnectionId, ServerMessage}
-;
+use super::server::{ConnectionId, ServerMessage};
 
 pub(crate) struct Connection {
     pub(super) connection_id: ConnectionId,

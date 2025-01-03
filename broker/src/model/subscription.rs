@@ -39,8 +39,10 @@ impl ToPlainText for SubscriptionStats {
     }
 }
 
-impl Entity<SubscriptionId> for Subscription { 
-    fn key(self: &Self) -> SubscriptionId { self.subscription_id() }
+impl Entity<SubscriptionId> for Subscription {
+    fn key(self: &Self) -> SubscriptionId {
+        self.subscription_id()
+    }
 }
 
 pub type SubscriptionRef = EntityRef<SubscriptionId, Subscription>;
@@ -111,11 +113,11 @@ impl Subscription {
             }
         }
     }
- 
+
     pub fn stats(self: &Self) -> SubscriptionStats {
         match self {
             Subscription::Shared(subscription) => subscription.stats(),
-            Subscription::KeyShared(subscription) => subscription.stats()
+            Subscription::KeyShared(subscription) => subscription.stats(),
         }
     }
 }

@@ -1,10 +1,12 @@
 use super::{
-    node::{Node, NodeList, NodeRef}, topic::{Topic, TopicList, TopicStats}, EntityList, RefreshStatus
+    node::{Node, NodeList, NodeRef},
+    topic::{Topic, TopicList, TopicStats},
+    EntityList, RefreshStatus,
 };
 use crate::{
-    data::DataLayer, 
-    persistence::persisted_entities, 
-    formatting::plain_text_builder::{PlainTextBuilder,ToPlainText}
+    data::DataLayer,
+    formatting::plain_text_builder::{PlainTextBuilder, ToPlainText},
+    persistence::persisted_entities,
 };
 use pulsar_rust_net::data_types::{NodeId, PortNumber, TopicId};
 use serde::Serialize;
@@ -77,11 +79,17 @@ pub const DEFAULT_PUBSUB_PORT: PortNumber = 8001;
 pub const DEFAULT_SYNC_PORT: PortNumber = 8002;
 
 impl Cluster {
-    pub fn nodes(self: &Self) -> &NodeList { &self.nodes }
-    
-    pub fn topics(self: &Self) -> &TopicList { &self.topics }
+    pub fn nodes(self: &Self) -> &NodeList {
+        &self.nodes
+    }
 
-    pub fn my_node_id(self: &Self) -> NodeId { self.my_node_id }
+    pub fn topics(self: &Self) -> &TopicList {
+        &self.topics
+    }
+
+    pub fn my_node_id(self: &Self) -> NodeId {
+        self.my_node_id
+    }
 
     pub fn new(data_layer: &Arc<DataLayer>, my_ip_address: &str) -> Self {
         let mut cluster = data_layer.get_cluster().unwrap();
@@ -107,14 +115,18 @@ impl Cluster {
             }
         };
 
-        let nodes = 
-            EntityList::from_iter(cluster.node_ids.iter().map(
-            |&node_id| Node::new(data_layer, node_id)),
+        let nodes = EntityList::from_iter(
+            cluster
+                .node_ids
+                .iter()
+                .map(|&node_id| Node::new(data_layer, node_id)),
         );
 
-        let topics = 
-            EntityList::from_iter(cluster.topic_ids.iter().map(
-            |&topic_id| Topic::new(data_layer, topic_id)),
+        let topics = EntityList::from_iter(
+            cluster
+                .topic_ids
+                .iter()
+                .map(|&topic_id| Topic::new(data_layer, topic_id)),
         );
 
         Self {
@@ -150,15 +162,16 @@ impl Cluster {
     }
 
     pub fn stats(self: &Self) -> ClusterStats {
-        let topics = self.topics.values().iter()
+        let topics = self
+            .topics
+            .values()
+            .iter()
             .map(|topic| ClusterTopicStats {
-                    topic_id: topic.topic_id(),
-                    topic_stats: topic.stats(),
+                topic_id: topic.topic_id(),
+                topic_stats: topic.stats(),
             })
             .collect();
-        ClusterStats {
-            topics,
-        }
+        ClusterStats { topics }
     }
 
     pub fn my_node(self: &Self) -> NodeRef {

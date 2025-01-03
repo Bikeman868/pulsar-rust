@@ -96,8 +96,9 @@ async fn get_topic_partitions_by_id(
 ) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_ADMIN_COUNT);
     match app.admin_service.topic_by_id(topic_id) {
-        Some(topic) => 
-            Ok(reply::json(&Response::success(PartitionList::from(topic.partitions())))),
+        Some(topic) => Ok(reply::json(&Response::success(PartitionList::from(
+            topic.partitions(),
+        )))),
         None => Err(warp::reject::not_found()),
     }
 }
@@ -109,8 +110,9 @@ async fn get_partition_ledgers_by_id(
 ) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_ADMIN_COUNT);
     match app.admin_service.partition_by_id(topic_id, partition_id) {
-        Some(partition) =>
-            Ok(reply::json(&Response::success(LedgerList::from(partition.ledgers())))),
+        Some(partition) => Ok(reply::json(&Response::success(LedgerList::from(
+            partition.ledgers(),
+        )))),
         None => Err(warp::reject::not_found()),
     }
 }

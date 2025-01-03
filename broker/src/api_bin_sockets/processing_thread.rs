@@ -1,26 +1,32 @@
 use core::time::Duration;
 
-use std::
+use std::{
     sync::{
-        atomic::{
-            AtomicBool, 
-            Ordering
-        }, mpsc::{Receiver, RecvTimeoutError, Sender}, Arc
-    } 
-;
+        atomic::{AtomicBool, Ordering},
+        mpsc::{Receiver, Sender, TryRecvError},
+        Arc,
+    },
+    thread,
+    time::Instant,
+};
 
-use log::{warn, info, debug};
-use pulsar_rust_net::sockets::{buffer_pool::{self, BufferPool}, MessageLength};
 use super::server::ServerMessage;
 use crate::App;
+use log::{debug, info, warn};
+use pulsar_rust_net::sockets::{
+    buffer_pool::{BufferPool},
+    MessageLength,
+};
 
-
+/// Receives requests from a mpsc channel, and processes the request to produce a reply,
+/// postig the reply into another mpsc channel.
 pub(crate) struct ProcessingThread {
-    app: Arc<App>, 
+    app: Arc<App>,
     buffer_pool: Arc<BufferPool>,
-    stop_signal: Arc<AtomicBool<>>,
+    stop_signal: Arc<AtomicBool>,
     sender: Arc<Sender<ServerMessage>>,
     receiver: Receiver<ServerMessage>,
+    last_message_instant: Instant,
 }
 
 impl ProcessingThread {
@@ -37,29 +43,57 @@ impl ProcessingThread {
             stop_signal: stop_signal.clone(),
             sender: sender.clone(),
             receiver,
+            last_message_instant: Instant::now(),
         }
     }
 
-    pub(crate) fn run(self: Self) {
-        info!("Binary API processing thread starting");
+    pub(crate) fn run(mut self: Self) {
+        info!("ProcessingThread: starting");
         while !self.stop_signal.load(Ordering::Relaxed) {
-            match self.receiver.recv_timeout(Duration::from_millis(50)) {
-                Ok(request) => {
-                    // debug!("ProcessingThread: processing request {request:?}");
-                    // Echo request for now
-                    let mut response = self.buffer_pool.get(request.body.len() as MessageLength);
-                    for i in 0..request.body.len() { 
-                        response[i] = request.body[i]
-                    }
-                    self.sender.send(ServerMessage { body: response, connection_id: request.connection_id }).ok();
-                    self.buffer_pool.reuse(request.body);
-                },
-                Err(e) => match e {
-                    RecvTimeoutError::Timeout => (),
-                    RecvTimeoutError::Disconnected => warn!("ProcessingThread"),
+            self.try_process();
+            self.sleep_if_idle();
+        }
+        info!("ProcessingThread stopping");
+    }
+
+    fn try_process(self: &mut Self) {
+        match self.receiver.try_recv() {
+            Ok(request) => {
+                self.last_message_instant = Instant::now();
+                #[cfg(debug_assertions)]
+                debug!("ProcessingThread: processing request {request:?}");
+                // TODO: Deserialize messages, process them using App services and serialize responses
+                // Echo request for now
+                let mut response = self.buffer_pool.get(request.body.len() as MessageLength);
+                for i in 0..request.body.len() {
+                    response[i] = request.body[i]
                 }
+                self.sender
+                    .send(ServerMessage {
+                        body: response,
+                        connection_id: request.connection_id,
+                    })
+                    .ok();
+                self.buffer_pool.reuse(request.body);
             }
-        };
-        info!("Binary API processing thread stopping");
+            Err(e) => match e {
+                TryRecvError::Empty => thread::sleep(Duration::from_millis(1)),
+                TryRecvError::Disconnected => self.fatal("Receive channel disconnected"),
+            },
+        }
+    }
+
+    fn sleep_if_idle(self: &Self) {
+        let idle_duration = self.last_message_instant.elapsed();
+        if idle_duration > Duration::from_millis(50) {
+            #[cfg(debug_assertions)]
+            debug!("ProcessingThread: idle more tham 50ms");
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    fn fatal(self: &Self, msg: &str) {
+        warn!("ProcessingThread: {}", msg);
+        self.stop_signal.store(true, Ordering::Relaxed);
     }
 }

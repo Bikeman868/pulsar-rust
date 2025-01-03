@@ -1,23 +1,27 @@
 use std::{
-    collections::HashMap, net::{TcpListener, TcpStream}, sync::{
-        atomic::{AtomicBool, Ordering}, 
-        mpsc::{channel, Receiver, SendError, Sender}, 
-        Arc, RwLock
-    }, thread::{
-        self, 
-    }
+    collections::HashMap,
+    net::{TcpListener, TcpStream},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{channel, Receiver, SendError, Sender},
+        Arc, RwLock,
+    },
+    thread::{self},
 };
 
-use pulsar_rust_net::sockets::buffer_pool::BufferPool;
-use log::{error, info, debug};
 use super::{
-    connection::Connection, connection_thread::ConnectionThread, router_thread::RouterThread, server::{ConnectionId, ServerMessage}
+    connection::Connection,
+    connection_thread::ConnectionThread,
+    router_thread::RouterThread,
+    server::{ConnectionId, ServerMessage},
 };
+use log::{error, info};
+use pulsar_rust_net::sockets::buffer_pool::BufferPool;
 
-/// A thread that listens for connections and spawns a thread to handle
-/// each client that connects. Construct with new() then call run() in thread spawn closure
+/// A thread that owns a Tcp listener, accepts connections to a listener and spawns a thread to handle
+/// each client that connects.
 pub(crate) struct ListenerThread {
-    sender: Sender<ServerMessage>, 
+    sender: Sender<ServerMessage>,
     listener: TcpListener,
     buffer_pool: Arc<BufferPool>,
     stop_signal: Arc<AtomicBool>,
@@ -27,16 +31,16 @@ pub(crate) struct ListenerThread {
 
 impl ListenerThread {
     pub(crate) fn new(
-        receiver: Receiver<ServerMessage>, 
+        receiver: Receiver<ServerMessage>,
         sender: Sender<ServerMessage>,
-        listener: TcpListener, 
-        buffer_pool: &Arc<BufferPool>, 
-        stop_signal: &Arc<AtomicBool>) -> Self {
-
+        listener: TcpListener,
+        buffer_pool: &Arc<BufferPool>,
+        stop_signal: &Arc<AtomicBool>,
+    ) -> Self {
         let connections = Arc::new(RwLock::new(HashMap::new()));
 
         let router = RouterThread::new(receiver, stop_signal, &connections);
-        thread::spawn(move||router.run());
+        thread::spawn(move || router.run());
 
         Self {
             sender,
@@ -57,14 +61,16 @@ impl ListenerThread {
                     stream.set_nonblocking(true).unwrap();
                     self.handle_connection(stream);
                 }
-                Err(e) => self.stop(&format!("ListenerThread: {e}")),
+                Err(e) => self.fatal(&format!("{e}")),
             }
         }
-        info!("ListenerThread: Signalling connections to terminate");
-        self.connections.read().unwrap().values().for_each(
-            |con|con.stop_signal.store(true, Ordering::Relaxed)
-        );
         info!("ListenerThread: Stopping");
+
+        self.connections
+            .read()
+            .unwrap()
+            .values()
+            .for_each(|connection| connection.stop_signal.store(true, Ordering::Relaxed));
     }
 
     pub(super) fn send(&self, message: ServerMessage) -> Result<(), SendError<ServerMessage>> {
@@ -85,7 +91,10 @@ impl ListenerThread {
             sender: tx_sender,
             stop_signal: stop_signal.clone(),
         };
-        self.connections.write().unwrap().insert(connection_id, connection);
+        self.connections
+            .write()
+            .unwrap()
+            .insert(connection_id, connection);
 
         let thread = ConnectionThread::new(
             tx_receiver,
@@ -93,15 +102,14 @@ impl ListenerThread {
             stream,
             &self.buffer_pool,
             &stop_signal,
+            &self.connections,
             connection_id,
         );
-        thread::spawn(move||thread.run());
+        thread::spawn(move || thread.run());
     }
 
-    fn stop(self: &Self, msg: &str) {
-        error!("{}", msg);
-        info!("ListenerThread: Signalling thread to stop");
+    fn fatal(self: &Self, msg: &str) {
+        error!("ListenerThread: {}", msg);
         self.stop_signal.store(true, Ordering::Relaxed);
     }
 }
-

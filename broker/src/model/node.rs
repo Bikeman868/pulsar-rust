@@ -3,9 +3,7 @@ use crate::{
     persistence::persisted_entities,
 };
 use pulsar_rust_net::data_types::{NodeId, PortNumber};
-use std::
-    sync::Arc
-;
+use std::sync::Arc;
 
 use super::{Entity, EntityList, EntityRef, RefreshStatus};
 
@@ -21,8 +19,10 @@ pub struct Node {
     sync_port: PortNumber,
 }
 
-impl Entity<NodeId> for Node { 
-    fn key(self: &Self) -> NodeId { self.node_id }
+impl Entity<NodeId> for Node {
+    fn key(self: &Self) -> NodeId {
+        self.node_id
+    }
 }
 
 pub type NodeRef = EntityRef<NodeId, Node>;

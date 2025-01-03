@@ -65,11 +65,11 @@ pub fn run(app: Arc<App>, ipv4: Ipv4Addr, port: u16, stop_signal: Arc<AtomicBool
 
 fn process_connections(app: Arc<App>, thread_id: usize, receiver: mpsc::Receiver<Arc<TcpStream>>, stop_signal: Arc<AtomicBool>) {
     while !stop_signal.clone().load(Ordering::Relaxed) {
-        match receiver.recv_timeout(Duration::from_millis(10)) {
+        match receiver.try_recv() {
             Ok(stream) => handle_connection(app.clone(), thread_id, stream, stop_signal.clone()),
             Err(err) => match err {
-                mpsc::RecvTimeoutError::Timeout => {},
-                mpsc::RecvTimeoutError::Disconnected => {
+                mpsc::TryRecvError::Empty => {},
+                mpsc::TryRecvError::Disconnected => {
                     println!("Worker thread {} terminating because channel is disconncted", thread_id);
                     return
                 },

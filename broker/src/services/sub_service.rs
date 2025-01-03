@@ -56,12 +56,18 @@ impl SubService {
     }
 
     pub fn topic_by_name(self: &Self, name: &str) -> Option<TopicRef> {
-        self.cluster.topics().find(|topic|topic.name() == name)
+        self.cluster.topics().find(|topic| topic.name() == name)
     }
 
-    pub fn subscription_by_name<'a>(self: &Self, topic_name: &'a str, subscription_name: &'a str) -> Option<SubscriptionRef> {
+    pub fn subscription_by_name<'a>(
+        self: &Self,
+        topic_name: &'a str,
+        subscription_name: &'a str,
+    ) -> Option<SubscriptionRef> {
         let topic = self.topic_by_name(topic_name)?;
-        topic.subscriptions().find(|subscription| subscription.name() == subscription_name)
+        topic
+            .subscriptions()
+            .find(|subscription| subscription.name() == subscription_name)
     }
 
     pub fn allocate_consumer_id(
@@ -128,7 +134,9 @@ impl SubService {
                             if subscription.ack(consumer_id, &message_ref_key) {
                                 ledger.ack(&message_ref.message_id);
                                 Ok(true)
-                            } else { Ok(false) }
+                            } else {
+                                Ok(false)
+                            }
                         }
                         None => Err(SubError::LedgerNotFound),
                     },

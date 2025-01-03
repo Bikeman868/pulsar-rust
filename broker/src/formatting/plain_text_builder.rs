@@ -18,13 +18,24 @@ pub struct PlainTextBuilder {
 
 impl PlainTextBuilder {
     pub fn new() -> Self {
-        Self { buffer: String::with_capacity(5000), indent_level: 0, begining_of_line: true, max_indent: 2 }
+        Self {
+            buffer: String::with_capacity(5000),
+            indent_level: 0,
+            begining_of_line: true,
+            max_indent: 2,
+        }
     }
 
-    pub fn build(self: Self) -> String { self.buffer }
+    pub fn build(self: Self) -> String {
+        self.buffer
+    }
 
-    pub fn indent(self: &mut Self) { self.indent_level += 1 }
-    pub fn outdent(self: &mut Self) { self.indent_level -= 1 }
+    pub fn indent(self: &mut Self) {
+        self.indent_level += 1
+    }
+    pub fn outdent(self: &mut Self) {
+        self.indent_level -= 1
+    }
 
     pub fn new_line(self: &mut Self) {
         if !self.begining_of_line {
@@ -34,7 +45,9 @@ impl PlainTextBuilder {
     }
 
     pub fn str_left(self: &mut Self, text: &str, width: usize) {
-        if self.indent_level > self.max_indent { return; }
+        if self.indent_level > self.max_indent {
+            return;
+        }
 
         self.check_for_indent();
 
@@ -46,7 +59,9 @@ impl PlainTextBuilder {
     }
 
     pub fn _str_right(self: &mut Self, text: &str, width: usize) {
-        if self.indent_level > self.max_indent { return; }
+        if self.indent_level > self.max_indent {
+            return;
+        }
 
         self.check_for_indent();
 
@@ -79,9 +94,9 @@ impl PlainTextBuilder {
 
     fn spaces(self: &mut Self, count: usize) {
         if count > 0 {
-            for _ in 0..count { 
+            for _ in 0..count {
                 self.buffer.push_str(" ")
-            };
+            }
         }
     }
 
@@ -117,7 +132,7 @@ mod tests {
             builder.usize_left(self.b, 10);
             builder.u32_left(self.c, 10);
             builder.new_line();
-        }    
+        }
     }
 
     #[test]
@@ -125,9 +140,24 @@ mod tests {
         let mut builder = PlainTextBuilder::new();
 
         TestData::to_plain_text_header(&mut builder);
-        TestData { a: String::from("One"), b: 1, c: 1}.to_plain_text(&mut builder);
-        TestData { a: String::from("Two"), b: 2, c: 2}.to_plain_text(&mut builder);
-        TestData { a: String::from("Three"), b: 3, c: 3}.to_plain_text(&mut builder);
+        TestData {
+            a: String::from("One"),
+            b: 1,
+            c: 1,
+        }
+        .to_plain_text(&mut builder);
+        TestData {
+            a: String::from("Two"),
+            b: 2,
+            c: 2,
+        }
+        .to_plain_text(&mut builder);
+        TestData {
+            a: String::from("Three"),
+            b: 3,
+            c: 3,
+        }
+        .to_plain_text(&mut builder);
 
         println!("{}", builder.build());
     }

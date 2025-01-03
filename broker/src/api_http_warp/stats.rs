@@ -1,23 +1,19 @@
 use super::with_app;
 use crate::{
-    formatting::plain_text_builder::{PlainTextBuilder, ToPlainText}, model::{
-        cluster::ClusterStats, 
-        ledger::LedgerStats, 
-        partition::PartitionStats, 
-        topic::TopicStats
-    }, App
+    formatting::plain_text_builder::{PlainTextBuilder, ToPlainText},
+    model::{
+        cluster::ClusterStats, ledger::LedgerStats, partition::PartitionStats, topic::TopicStats,
+    },
+    App,
 };
 use pulsar_rust_net::data_types::{LedgerId, PartitionId, TopicId};
 use std::sync::Arc;
 use warp::{
-    get, 
-    header,
-    path,
+    get, header,
     http::Response,
+    path,
     reply::{self},
-    Filter, 
-    Rejection, 
-    Reply,
+    Filter, Rejection, Reply,
 };
 
 fn with_accept() -> impl Filter<Extract = (String,), Error = warp::Rejection> + Clone {
@@ -56,7 +52,9 @@ fn get_ledger_response(
             }
         }
     } else {
-        Response::builder().body("No stats available").into_response()
+        Response::builder()
+            .body("No stats available")
+            .into_response()
     }
 }
 
@@ -74,7 +72,7 @@ fn get_partition_response(
 
                 PartitionStats::to_plain_text_header(&mut builder);
                 stats.to_plain_text(&mut builder);
-                
+
                 Response::builder()
                     .header("Content-Type", &accept)
                     .body(builder.build())
@@ -82,15 +80,13 @@ fn get_partition_response(
             }
         }
     } else {
-        Response::builder().body("No stats available").into_response()
+        Response::builder()
+            .body("No stats available")
+            .into_response()
     }
 }
 
-fn get_topic_response(
-    topic_id: TopicId,
-    accept: String,
-    app: Arc<App>,
-) -> warp::reply::Response {
+fn get_topic_response(topic_id: TopicId, accept: String, app: Arc<App>) -> warp::reply::Response {
     if let Some(stats) = app.stats_service.topic(topic_id) {
         match accept.as_str() {
             "application/json" => reply::json(&stats).into_response(),
@@ -99,7 +95,7 @@ fn get_topic_response(
 
                 TopicStats::to_plain_text_header(&mut builder);
                 stats.to_plain_text(&mut builder);
-                
+
                 Response::builder()
                     .header("Content-Type", &accept)
                     .body(builder.build())
@@ -107,14 +103,13 @@ fn get_topic_response(
             }
         }
     } else {
-        Response::builder().body("No stats available").into_response()
+        Response::builder()
+            .body("No stats available")
+            .into_response()
     }
 }
 
-fn get_cluster_response(
-    accept: String,
-    app: Arc<App>,
-) -> warp::reply::Response {
+fn get_cluster_response(accept: String, app: Arc<App>) -> warp::reply::Response {
     if let Some(stats) = app.stats_service.cluster() {
         match accept.as_str() {
             "application/json" => reply::json(&stats).into_response(),
@@ -131,7 +126,9 @@ fn get_cluster_response(
             }
         }
     } else {
-        Response::builder().body("No stats available").into_response()
+        Response::builder()
+            .body("No stats available")
+            .into_response()
     }
 }
 
@@ -142,7 +139,13 @@ async fn get_ledger_stats(
     accept: String,
     app: Arc<App>,
 ) -> Result<impl Reply, Rejection> {
-    Ok(get_ledger_response(topic_id, partition_id, ledger_id, accept, app))
+    Ok(get_ledger_response(
+        topic_id,
+        partition_id,
+        ledger_id,
+        accept,
+        app,
+    ))
 }
 
 async fn get_partition_stats(
@@ -162,10 +165,7 @@ async fn get_topic_stats(
     Ok(get_topic_response(topic_id, accept, app))
 }
 
-async fn get_cluster_stats(
-    accept: String,
-    app: Arc<App>,
-) -> Result<impl Reply, Rejection> {
+async fn get_cluster_stats(accept: String, app: Arc<App>) -> Result<impl Reply, Rejection> {
     Ok(get_cluster_response(accept, app))
 }
 

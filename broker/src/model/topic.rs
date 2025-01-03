@@ -1,11 +1,12 @@
 use super::{
-    partition::{Partition, PartitionList, PartitionStats}, 
-    subscription::{
-        key_shared, shared, Subscription, SubscriptionList, SubscriptionStats
-    }, 
-    Entity, EntityList, EntityRef
+    partition::{Partition, PartitionList, PartitionStats},
+    subscription::{key_shared, shared, Subscription, SubscriptionList, SubscriptionStats},
+    Entity, EntityList, EntityRef,
 };
-use crate::{data::DataLayer, formatting::plain_text_builder::{PlainTextBuilder, ToPlainText}};
+use crate::{
+    data::DataLayer,
+    formatting::plain_text_builder::{PlainTextBuilder, ToPlainText},
+};
 use pulsar_rust_net::data_types::{PartitionId, SubscriptionId, TopicId};
 use serde::Serialize;
 use std::sync::Arc;
@@ -96,8 +97,10 @@ pub struct Topic {
     subscriptions: SubscriptionList,
 }
 
-impl Entity<TopicId> for Topic { 
-    fn key(self: &Self) -> TopicId { self.topic_id }
+impl Entity<TopicId> for Topic {
+    fn key(self: &Self) -> TopicId {
+        self.topic_id
+    }
 }
 
 pub type TopicRef = EntityRef<TopicId, Topic>;
@@ -112,24 +115,26 @@ impl Topic {
         &self.name
     }
 
-    pub fn partitions(self: &Self) ->  &PartitionList {
+    pub fn partitions(self: &Self) -> &PartitionList {
         &self.partitions
     }
 
-    pub fn subscriptions(self: &Self) ->  &SubscriptionList {
+    pub fn subscriptions(self: &Self) -> &SubscriptionList {
         &self.subscriptions
     }
 
     pub fn new(data_layer: &Arc<DataLayer>, topic_id: TopicId) -> Self {
         let topic = data_layer.get_topic(topic_id).unwrap();
 
-        let partitions = 
-            EntityList::from_iter(topic.partition_ids.iter().map(
-            |&partition_id| Partition::new(data_layer, topic_id, partition_id)),
+        let partitions = EntityList::from_iter(
+            topic
+                .partition_ids
+                .iter()
+                .map(|&partition_id| Partition::new(data_layer, topic_id, partition_id)),
         );
 
-        let subscriptions = EntityList::from_iter(topic.subscription_ids.iter().map(
-            |&subscription_id| {
+        let subscriptions =
+            EntityList::from_iter(topic.subscription_ids.iter().map(|&subscription_id| {
                 let subscription = data_layer
                     .get_subscription(topic_id, subscription_id)
                     .unwrap();
@@ -146,8 +151,7 @@ impl Topic {
                         subscription_id,
                     ))
                 }
-            },
-        ));
+            }));
 
         let name = topic.name.clone();
 
@@ -166,16 +170,22 @@ impl Topic {
     pub fn refresh(self: &mut Self, _data_layer: &Arc<DataLayer>) {}
 
     pub fn stats(self: &Self) -> TopicStats {
-        let partitions = self.partitions.values().iter()
+        let partitions = self
+            .partitions
+            .values()
+            .iter()
             .map(|partition| TopicPartitionStats {
-                    partition_id: partition.partition_id(),
-                    partition_stats: partition.stats(),
+                partition_id: partition.partition_id(),
+                partition_stats: partition.stats(),
             })
             .collect();
-        let subscriptions = self.subscriptions.values().iter()
+        let subscriptions = self
+            .subscriptions
+            .values()
+            .iter()
             .map(|subscription| TopicSubscriptionStats {
-                    subscription_id: subscription.subscription_id(),
-                    subscription_stats: subscription.stats(),
+                subscription_id: subscription.subscription_id(),
+                subscription_stats: subscription.stats(),
             })
             .collect();
         TopicStats {

@@ -1,18 +1,15 @@
-use std::{
-    net::{TcpListener, TcpStream}, 
-    sync::{
-        atomic::{AtomicBool, Ordering}, 
-        mpsc::{channel, Receiver, RecvTimeoutError, Sender}, 
-        Arc,
-    }, 
-    thread::{
-        self, 
-    }
-};
-use core::time::Duration;
-use log::{info, debug};
-use pulsar_rust_net::sockets::buffer_pool::BufferPool;
 use crate::api_bin_sockets::listener_thread::ListenerThread;
+use log::info;
+use pulsar_rust_net::sockets::buffer_pool::BufferPool;
+use std::{
+    net::{TcpListener, TcpStream},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{channel, Receiver, Sender, TryRecvError},
+        Arc,
+    },
+    thread::{self},
+};
 
 pub(crate) type ConnectionId = u32;
 
@@ -23,31 +20,44 @@ pub(crate) struct ServerMessage {
 }
 
 pub(crate) struct Server {
-    stop_signal: Arc<AtomicBool<>>,
+    stop_signal: Arc<AtomicBool>,
     sender: Arc<Sender<ServerMessage>>,
     receiver: Receiver<ServerMessage>,
     port: u16,
 }
 
+/// Binds to a local port and spawns a thread that will listen for client connections this endpoint.
+/// When the server is dropped, the background listener thread is terminated.
+/// Provides mpsc channels for request processing. Requests from clients are pushed into the rx channel and
+/// application responses should be pushed into the tx channel. Individual clients are identified by a
+/// connection id in each server message. It is important to copy the connection id into responses so that
+/// they go to the right client.
 impl Server {
     pub(crate) fn new(buffer_pool: &Arc<BufferPool>, authority: &str) -> Self {
         info!("Server: Listening on {authority}");
-        let listener = TcpListener::bind(authority).expect(&format!("Server: Failed to listen for connections on {authority}"));
+        let listener = TcpListener::bind(authority).expect(&format!(
+            "Server: Failed to listen for connections on {authority}"
+        ));
         let stop_signal = Arc::new(AtomicBool::new(false));
         let port = listener.local_addr().unwrap().port();
 
         let (tx_sender, tx_receiver) = channel::<ServerMessage>();
         let (rx_sender, rx_receiver) = channel::<ServerMessage>();
 
-        let thread = ListenerThread::new(tx_receiver, rx_sender, listener, &buffer_pool, &stop_signal);
-        thread::spawn(move||thread.run());
+        let thread =
+            ListenerThread::new(tx_receiver, rx_sender, listener, &buffer_pool, &stop_signal);
+        thread::spawn(move || thread.run());
 
-        Self { stop_signal, sender: Arc::new(tx_sender), receiver: rx_receiver, port }
+        Self {
+            stop_signal,
+            sender: Arc::new(tx_sender),
+            receiver: rx_receiver,
+            port,
+        }
     }
 
-    
-    pub(crate) fn recv_timeout(self: &Self, duration: Duration) -> Result<ServerMessage, RecvTimeoutError> {
-        self.receiver.recv_timeout(duration)
+    pub(crate) fn try_recv(self: &Self) -> Result<ServerMessage, TryRecvError> {
+        self.receiver.try_recv()
     }
 
     pub(crate) fn sender(&self) -> Arc<Sender<ServerMessage>> {

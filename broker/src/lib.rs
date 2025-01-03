@@ -3,9 +3,9 @@ extern crate lazy_static;
 
 use observability::Metrics;
 use persistence::PersistenceLayer;
-use services::{admin_service::AdminService, stats_service::StatsService};
 use services::pub_service::PubService;
 use services::sub_service::SubService;
+use services::{admin_service::AdminService, stats_service::StatsService};
 use std::sync::{atomic::AtomicBool, Arc};
 
 /// This module is updated with a randomly generated build number automatically on each build
