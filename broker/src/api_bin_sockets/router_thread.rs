@@ -13,7 +13,13 @@ use super::{
     connection::Connection,
     server::{ConnectionId, ServerMessage},
 };
-use log::{debug, info, warn};
+use log::{info, warn};
+
+#[cfg(debug_assertions)]
+use log::debug;
+
+const IDLE_LIMIT_DURATION: Duration =  Duration::from_millis(50);
+const IDLE_SLEEP_DURATION: Duration =  Duration::from_millis(10);
 
 pub(crate) struct RouterThread {
     connections: Arc<RwLock<HashMap<ConnectionId, Connection>>>,
@@ -37,12 +43,12 @@ impl RouterThread {
     }
 
     pub(crate) fn run(mut self: Self) {
-        info!("Router: Starting");
+        info!("Router: Started");
         while !self.stop_signal.load(Ordering::Relaxed) {
             self.try_route();
             self.sleep_if_idle();
         }
-        info!("Router: Stopping");
+        info!("Router: Stopped");
     }
 
     fn try_route(self: &mut Self) {
@@ -51,25 +57,25 @@ impl RouterThread {
                 self.last_message_instant = Instant::now();
                 let connection_id = message.connection_id;
                 #[cfg(debug_assertions)]
-                debug!("Router: Received message for connection {connection_id}");
+                debug!("Router: Received response for connection {connection_id}");
                 match self.connections.read().unwrap().get(&message.connection_id) {
                     Some(connection) => {
                         #[cfg(debug_assertions)]
-                        debug!("Router: Sending message to connection {connection_id}");
-                        match connection.sender.send(message) {
+                        debug!("Router: Sending response to connection {connection_id}");
+                        match connection.send(message) {
                             Ok(_) => {
                                 #[cfg(debug_assertions)]
-                                debug!("Router: Sent message to connection {connection_id}");
+                                debug!("Router: Sent response to connection {connection_id}");
                             }
-                            Err(e) => {
+                            Err(_e) => {
                                 #[cfg(debug_assertions)]
-                                debug!("Router: Error sending to connection {connection_id}: {e}");
+                                debug!("Router: Error sending to connection {connection_id}: {_e}");
                                 self.connections.write().unwrap().remove(&connection_id);
                             }
                         }
                     }
                     None => {
-                        warn!("Router: Message can't be routed, unknown connection id {connection_id}");
+                        warn!("Router: Response can't be routed, unknown connection id {connection_id}");
                     }
                 }
             }
@@ -82,10 +88,8 @@ impl RouterThread {
 
     fn sleep_if_idle(self: &Self) {
         let idle_duration = self.last_message_instant.elapsed();
-        if idle_duration > Duration::from_millis(50) {
-            #[cfg(debug_assertions)]
-            debug!("ProcessingThread: idle more tham 50ms");
-            thread::sleep(Duration::from_millis(10));
+        if idle_duration > IDLE_LIMIT_DURATION {
+            thread::sleep(IDLE_SLEEP_DURATION);
         }
     }
 

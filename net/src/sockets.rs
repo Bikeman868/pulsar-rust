@@ -6,6 +6,6 @@ pub mod broker_to_broker;
 pub mod broker_to_client;
 pub mod buffer_pool;
 pub mod client_to_broker;
-pub mod connection;
+pub mod tcp_channel;
 
 pub type MessageLength = u16;

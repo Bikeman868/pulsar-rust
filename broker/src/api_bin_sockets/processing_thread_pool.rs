@@ -12,7 +12,7 @@ use std::{
 };
 
 use crate::App;
-use log::{debug, info, warn};
+use log::{info, warn};
 use pulsar_rust_net::sockets::buffer_pool::BufferPool;
 
 use super::{
@@ -20,10 +20,12 @@ use super::{
     server::{Server, ServerMessage},
 };
 
+const IDLE_LIMIT_DURATION: Duration =  Duration::from_millis(50);
+const IDLE_SLEEP_DURATION: Duration =  Duration::from_millis(10);
+
 pub(crate) struct ProcessingThreadPool {
     stop_signal: Arc<AtomicBool>,
     app: Arc<App>,
-    addr: SocketAddrV4,
     authority: String,
     buffer_pool: Arc<BufferPool>,
     last_message_instant: Instant,
@@ -42,7 +44,6 @@ impl ProcessingThreadPool {
         Self {
             stop_signal: stop_signal.clone(),
             app: app.clone(),
-            addr,
             authority: format!("{}:{}", addr.ip(), addr.port()),
             buffer_pool: buffer_pool.clone(),
             last_message_instant: Instant::now(),
@@ -51,7 +52,7 @@ impl ProcessingThreadPool {
     }
 
     pub(crate) fn run(mut self: Self) {
-        info!("ProcessingThreadPool: starting");
+        info!("ProcessingThreadPool: Started");
 
         let server = Server::new(&self.buffer_pool, &self.authority);
         let request_senders = self.create_threads(&server.sender());
@@ -61,7 +62,7 @@ impl ProcessingThreadPool {
             self.sleep_if_idle();
         }
 
-        info!("ProcessingThreadPool: stopping");
+        info!("ProcessingThreadPool: Stopped");
     }
 
     fn create_threads(
@@ -110,10 +111,8 @@ impl ProcessingThreadPool {
 
     fn sleep_if_idle(self: &Self) {
         let idle_duration = self.last_message_instant.elapsed();
-        if idle_duration > Duration::from_millis(50) {
-            #[cfg(debug_assertions)]
-            debug!("ProcessingThread: idle more tham 50ms");
-            thread::sleep(Duration::from_millis(10));
+        if idle_duration > IDLE_LIMIT_DURATION {
+            thread::sleep(IDLE_SLEEP_DURATION);
         }
     }
 

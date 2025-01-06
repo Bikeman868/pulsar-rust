@@ -1,11 +1,10 @@
-use log::{debug, error, info};
+use log::{warn, info};
 use std::{
     collections::HashMap,
-    io::ErrorKind,
     net::TcpStream,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::{Receiver, Sender, TryRecvError},
+        mpsc::{channel, Receiver, Sender, TryRecvError},
         Arc, RwLock,
     },
     thread,
@@ -14,7 +13,7 @@ use std::{
 
 use pulsar_rust_net::sockets::{
     buffer_pool::BufferPool,
-    connection::{send_tcp, try_receive_tcp},
+    tcp_channel::TcpChannel,
 };
 
 use super::{
@@ -22,19 +21,24 @@ use super::{
     server::{ConnectionId, ServerMessage},
 };
 
+#[cfg(debug_assertions)]
+use log::debug;
+
+const IDLE_LIMIT_DURATION: Duration =  Duration::from_millis(50);
+const IDLE_SLEEP_DURATION: Duration =  Duration::from_millis(10);
+
 /// A thread that moves messages between a Tcp stream and a pair of channels
 pub(crate) struct ConnectionThread {
     connection_id: ConnectionId,
-    receiver: Receiver<ServerMessage>,
-    sender: Sender<ServerMessage>,
-    stream: TcpStream,
+    response_receiver: Receiver<ServerMessage>,
+    request_sender: Sender<ServerMessage>,
+    tcp_request_receiver: Receiver<Vec<u8>>,
+    tcp_response_sender: Sender<Vec<u8>>,
+    _tcp_channel: TcpChannel,
     buffer_pool: Arc<BufferPool>,
     stop_signal: Arc<AtomicBool>,
     connections: Arc<RwLock<HashMap<ConnectionId, Connection>>>,
-    created_instant: Instant,
     last_message_instant: Instant,
-    max_idle: Duration,
-    max_lifetime: Option<Duration>,
 }
 
 impl ConnectionThread {
@@ -47,109 +51,104 @@ impl ConnectionThread {
         connections: &Arc<RwLock<HashMap<ConnectionId, Connection>>>,
         connection_id: ConnectionId,
     ) -> Self {
-        Self {
-            receiver,
-            sender,
+        let (tcp_response_sender, tcp_receiver) = channel();
+        let (tcp_sender, tcp_request_receiver) = channel();
+
+        stream.set_nonblocking(true).unwrap();
+        stream.set_read_timeout(Some(Duration::from_millis(5))).unwrap();
+
+        let tcp_channel = TcpChannel::new(
+            tcp_receiver,
+            tcp_sender,
             stream,
+            buffer_pool,
+            stop_signal,
+        );
+
+        Self {
+            response_receiver: receiver,
+            request_sender: sender,
+            tcp_request_receiver,
+            tcp_response_sender,
+            _tcp_channel: tcp_channel,
             buffer_pool: buffer_pool.clone(),
             stop_signal: stop_signal.clone(),
             connections: connections.clone(),
             connection_id,
-            created_instant: Instant::now(),
             last_message_instant: Instant::now(),
-            max_idle: Duration::from_secs(30),
-            max_lifetime: None,
         }
     }
 
     pub(crate) fn run(mut self: Self) {
-        info!("ConnectionThread: Starting");
+        info!("ConnectionThread: Started");
         while !self.stop_signal.load(Ordering::Relaxed) {
             self.try_send();
             self.try_receive();
-            self.stop_if_idle();
+            self.sleep_if_idle();
         }
-        info!("ConnectionThread: Stopping");
         self.connections
             .write()
             .unwrap()
             .remove(&self.connection_id);
+        info!("ConnectionThread: Stopped");
     }
 
     fn try_send(self: &mut Self) {
-        match self.receiver.try_recv() {
+        match self.response_receiver.try_recv() {
             Ok(message) => {
                 self.last_message_instant = Instant::now();
                 #[cfg(debug_assertions)]
                 debug!("ConnectionThread: Received message from channel: {message:?}");
-                match send_tcp(message.body, &mut self.stream, &self.buffer_pool) {
-                    Ok(_) => {
-                        #[cfg(debug_assertions)]
-                        debug!("ConnectionThread: Wrote message to Tcp stream");
-                    }
-                    Err(e) => {
-                        self.fatal(&format!("Failed to write message to Tcp stream: {e:?}"));
+                match self.tcp_response_sender.send(message.body) {
+                    Ok(_) => (),
+                    Err(err) => {
+                        self.fatal(&"Tcp sender channel disconnected");
+                        self.buffer_pool.reuse(err.0);
                     }
                 }
             }
             Err(e) => match e {
                 TryRecvError::Empty => {}
-                TryRecvError::Disconnected => self.fatal(&"Receiver channel disconnected"),
+                TryRecvError::Disconnected => self.fatal(&"Response receiver channel disconnected"),
             },
         }
     }
 
     fn try_receive(self: &mut Self) {
-        match try_receive_tcp(&mut self.stream, &self.buffer_pool) {
-            Ok(Some(buffer)) => {
+        match self.tcp_request_receiver.try_recv() {
+            Ok(message) => {
                 self.last_message_instant = Instant::now();
                 #[cfg(debug_assertions)]
-                debug!("ConnectionThread: Received message from Tcp stream: {buffer:?}");
-                match self.sender.send(ServerMessage {
-                    connection_id: self.connection_id,
-                    body: buffer,
-                }) {
-                    Ok(_) => {
-                        #[cfg(debug_assertions)]
-                        debug!("ConnectionThread: Posted message to channel");
+                debug!("ConnectionThread: Received message from Tcp: {message:?}");
+                match self.request_sender.send(ServerMessage{ body: message, connection_id: self.connection_id }) {
+                    Ok(_) => (),
+                    Err(err) => {
+                        self.fatal(&"Request sender channel disconnected");
+                        self.buffer_pool.reuse(err.0.body);
                     }
-                    Err(e) => self.fatal(&format!("Failed to post message to channel: {e}")),
                 }
             }
-            Ok(None) => {
-                #[cfg(debug_assertions)]
-                debug!("ConnectionThread: No messages received from Tcp stream");
-            }
-            Err(e) if e.kind() == ErrorKind::ConnectionReset => {
-                #[cfg(debug_assertions)]
-                debug!("ConnectionThread: Tcp connection closed by client");
-                self.stop_signal.store(true, Ordering::Relaxed);
-            }
-            Err(e) => self.fatal(&format!("Failed read message from Tcp stream: {e:?}")),
+            Err(e) => match e {
+                TryRecvError::Empty => {}
+                TryRecvError::Disconnected => self.fatal(&"Tcp receiver channel disconnected"),
+            },
         }
     }
 
-    fn stop_if_idle(self: &Self) {
+    fn sleep_if_idle(self: &Self) {
         let idle_duration = self.last_message_instant.elapsed();
-        if idle_duration > Duration::from_millis(50) {
-            #[cfg(debug_assertions)]
-            debug!("ConnectionThread: idle more tham 50ms");
-            thread::sleep(Duration::from_millis(50));
-            if let Some(max_lifetime) = self.max_lifetime {
-                if self.created_instant.elapsed() > max_lifetime {
-                    info!("ConnectionThread: Maximum lifetime exceeded");
-                    self.stop_signal.store(true, Ordering::Relaxed);
-                }
-            }
-            if idle_duration > self.max_idle {
-                info!("ConnectionThread: Idle for too long");
-                self.stop_signal.store(true, Ordering::Relaxed);
-            }
+        if idle_duration > IDLE_LIMIT_DURATION {
+            thread::sleep(IDLE_SLEEP_DURATION);
         }
     }
 
-    fn fatal(self: &Self, msg: &str) {
-        error!("ConnectionThread: {}", msg);
+    fn fatal(self: &mut Self, msg: &str) {
+        warn!("ConnectionThread: {}", msg);
+        self.stop();
+    }
+
+    fn stop(self: &mut Self) {
         self.stop_signal.store(true, Ordering::Relaxed);
+        self.last_message_instant = Instant::now();
     }
 }

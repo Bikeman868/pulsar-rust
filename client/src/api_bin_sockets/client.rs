@@ -1,61 +1,73 @@
-use crate::api_bin_sockets::connection_thread::ConnectionThread;
 use log::info;
 use pulsar_rust_net::sockets::buffer_pool::BufferPool;
-use std::{
-    net::TcpStream,
+use std::
     sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc::{channel, Receiver, RecvError, SendError, Sender, TryRecvError},
+        mpsc::{RecvError, SendError, TryRecvError},
         Arc,
-    },
-    thread::{self},
-};
+    }
+;
+
+use super::connection::Connection;
 
 pub(crate) type ClientMessage = Vec<u8>;
 
 pub struct Client {
-    stop_signal: Arc<AtomicBool>,
-    sender: Sender<ClientMessage>,
-    receiver: Receiver<ClientMessage>,
+    authority: String,
+    buffer_pool: Arc<BufferPool>,
+    connection: Option<Connection>,
 }
 
 impl Client {
     pub fn new(buffer_pool: &Arc<BufferPool>, authority: &str) -> Self {
-        info!("Client: Connecting to {authority}");
-        let stream = TcpStream::connect(authority)
-            .expect(&format!("Client: Failed to connect to {authority}"));
-        let stop_signal = Arc::new(AtomicBool::new(false));
-
-        let (tx_sender, tx_receiver) = channel::<ClientMessage>();
-        let (rx_sender, rx_receiver) = channel::<ClientMessage>();
-
-        let thread =
-            ConnectionThread::new(tx_receiver, rx_sender, stream, &buffer_pool, &stop_signal);
-        thread::spawn(move || thread.run());
+        info!("Client: Constructed for {authority}");
 
         Self {
-            stop_signal,
-            sender: tx_sender,
-            receiver: rx_receiver,
+            authority: String::from(authority),
+            buffer_pool: buffer_pool.clone(),
+            connection: None,
         }
     }
 
+    pub fn connect(self: &mut Self) {
+        self.connection = Some(Connection::new(&self.buffer_pool, &self.authority));
+    }
+
+    pub fn disconnect(self: &mut Self) {
+        if let Some(connection) = self.connection.take() {
+            connection.disconnect();
+        }
+    }
+
+    pub fn is_connected(self: &Self) -> bool { self.connection.is_some() }
+
     pub fn try_recv(self: &Self) -> Result<ClientMessage, TryRecvError> {
-        self.receiver.try_recv()
+        if let Some(connection) = &self.connection {
+            connection.try_recv()
+        } else { 
+            Err(TryRecvError::Disconnected)
+        }
     }
 
     pub fn recv(self: &Self) -> Result<ClientMessage, RecvError> {
-        self.receiver.recv()
+        if let Some(connection) = &self.connection {
+            connection.recv()
+        } else { 
+            Err(RecvError)
+        }
     }
 
     pub fn send(&self, message: ClientMessage) -> Result<(), SendError<ClientMessage>> {
-        self.sender.send(message)
+        if let Some(connection) = &self.connection {
+            connection.send(message)
+        } else { 
+            Err(SendError(message))
+        }
     }
 }
 
 impl Drop for Client {
     fn drop(&mut self) {
-        info!("Client: Signalling threads to stop");
-        self.stop_signal.store(true, Ordering::Relaxed);
+        self.disconnect();
+        info!("Client: Dropped");
     }
 }

@@ -3,7 +3,7 @@ use log::LevelFilter;
 use pulsar_rust_broker::{
     api_bin_sockets, api_http_warp,
     data::DataLayer,
-    model::cluster::{Cluster, DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT},
+    model::cluster::Cluster,
     observability::Metrics,
     persistence::{PersistenceLayer, PersistenceScheme},
     services::{
@@ -23,6 +23,9 @@ use std::{
     },
 };
 use tokio::task;
+
+#[cfg(debug_assertions)]
+use pulsar_rust_broker::model::cluster::{DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT};
 
 #[tokio::main]
 async fn main() {

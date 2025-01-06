@@ -34,10 +34,10 @@ pub(crate) struct Server {
 /// they go to the right client.
 impl Server {
     pub(crate) fn new(buffer_pool: &Arc<BufferPool>, authority: &str) -> Self {
-        info!("Server: Listening on {authority}");
         let listener = TcpListener::bind(authority).expect(&format!(
-            "Server: Failed to listen for connections on {authority}"
+            "Server: Failed to listen on {authority}"
         ));
+        info!("Server: Constructed for {authority}");
         let stop_signal = Arc::new(AtomicBool::new(false));
         let port = listener.local_addr().unwrap().port();
 
@@ -67,10 +67,10 @@ impl Server {
 
 impl Drop for Server {
     fn drop(&mut self) {
-        info!("Server: Signalling threads to stop");
         self.stop_signal.store(true, Ordering::Relaxed);
 
         // We need to initiate a connection to wake the listener thread
         let _ = TcpStream::connect(format!("127.0.0.1:{}", self.port));
+        info!("Server: Dropped");
     }
 }

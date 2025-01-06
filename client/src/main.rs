@@ -12,6 +12,8 @@ type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 async fn main() -> Result<()> {
     let mut clog = colog::default_builder();
     clog.filter_level(LevelFilter::Info);
+    #[cfg(debug_assertions)]
+    clog.filter_level(LevelFilter::Debug);
     clog.init();
 
     let args: Vec<String> = env::args().collect();

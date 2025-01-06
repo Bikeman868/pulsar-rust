@@ -12,16 +12,19 @@ use std::{
 
 use super::server::ServerMessage;
 use crate::App;
-use log::{debug, info, warn};
+use log::{info, warn};
 use pulsar_rust_net::sockets::{
-    buffer_pool::{BufferPool},
+    buffer_pool::BufferPool,
     MessageLength,
 };
+
+#[cfg(debug_assertions)]
+use log::debug;
 
 /// Receives requests from a mpsc channel, and processes the request to produce a reply,
 /// postig the reply into another mpsc channel.
 pub(crate) struct ProcessingThread {
-    app: Arc<App>,
+    _app: Arc<App>,
     buffer_pool: Arc<BufferPool>,
     stop_signal: Arc<AtomicBool>,
     sender: Arc<Sender<ServerMessage>>,
@@ -38,7 +41,7 @@ impl ProcessingThread {
         receiver: Receiver<ServerMessage>,
     ) -> Self {
         Self {
-            app: app.clone(),
+            _app: app.clone(),
             buffer_pool: buffer_pool.clone(),
             stop_signal: stop_signal.clone(),
             sender: sender.clone(),
@@ -48,12 +51,12 @@ impl ProcessingThread {
     }
 
     pub(crate) fn run(mut self: Self) {
-        info!("ProcessingThread: starting");
+        info!("ProcessingThread: Started");
         while !self.stop_signal.load(Ordering::Relaxed) {
             self.try_process();
             self.sleep_if_idle();
         }
-        info!("ProcessingThread stopping");
+        info!("ProcessingThread: Stopped");
     }
 
     fn try_process(self: &mut Self) {
@@ -63,10 +66,9 @@ impl ProcessingThread {
                 #[cfg(debug_assertions)]
                 debug!("ProcessingThread: processing request {request:?}");
                 // TODO: Deserialize messages, process them using App services and serialize responses
-                // Echo request for now
                 let mut response = self.buffer_pool.get(request.body.len() as MessageLength);
                 for i in 0..request.body.len() {
-                    response[i] = request.body[i]
+                    response[i] = request.body[i] ^ 0x7f
                 }
                 self.sender
                     .send(ServerMessage {
@@ -86,8 +88,6 @@ impl ProcessingThread {
     fn sleep_if_idle(self: &Self) {
         let idle_duration = self.last_message_instant.elapsed();
         if idle_duration > Duration::from_millis(50) {
-            #[cfg(debug_assertions)]
-            debug!("ProcessingThread: idle more tham 50ms");
             thread::sleep(Duration::from_millis(10));
         }
     }
