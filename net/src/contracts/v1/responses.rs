@@ -7,16 +7,18 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::data_types::{
-    ConsumerId, LedgerId, MessageId, NodeId, PartitionId, PortNumber, SubscriptionId, Timestamp,
-    TopicId,
+    ConsumerId, ContractVersionNumber, LedgerId, MessageId, NodeId, PartitionId, PortNumber,
+    SubscriptionId, Timestamp, TopicId,
 };
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ClusterSummary {
     pub name: String,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ClusterDetail {
     pub name: String,
     pub nodes: Vec<NodeSummary>,
@@ -24,12 +26,14 @@ pub struct ClusterDetail {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NodeSummary {
     pub node_id: NodeId,
     pub ip_address: String,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NodeDetail {
     pub node_id: NodeId,
     pub ip_address: String,
@@ -40,11 +44,13 @@ pub struct NodeDetail {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TopicSummary {
     pub topic_id: TopicId,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TopicDetail {
     pub topic_id: TopicId,
     pub name: String,
@@ -52,12 +58,14 @@ pub struct TopicDetail {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PartitionSummary {
     pub topic_id: TopicId,
     pub partition_id: PartitionId,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PartitionDetail {
     pub topic_id: TopicId,
     pub partition_id: PartitionId,
@@ -65,6 +73,7 @@ pub struct PartitionDetail {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LedgerSummary {
     pub topic_id: TopicId,
     pub partition_id: PartitionId,
@@ -73,6 +82,7 @@ pub struct LedgerSummary {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LedgerDetail {
     pub topic_id: TopicId,
     pub partition_id: PartitionId,
@@ -85,21 +95,25 @@ pub struct LedgerDetail {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NodeList {
     pub nodes: Vec<NodeSummary>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TopicList {
     pub topics: Vec<TopicSummary>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PartitionList {
     pub partitions: Vec<PartitionSummary>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct TopicPartitionMap {
     pub topic: TopicSummary,
     pub partitions: Vec<PartitionDetail>,
@@ -107,27 +121,39 @@ pub struct TopicPartitionMap {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LedgerList {
     pub ledgers: Vec<LedgerSummary>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct NegotiateVersionResult {
+    pub version: ContractVersionNumber,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PublishResult {
     pub message_ref: MessageRef,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct AllocateConsumerResult {
     pub consumer_id: ConsumerId,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct AckResult {}
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NackResult {}
 
 #[derive(Deserialize, Serialize, Clone, Default)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct MessageRef {
     pub topic_id: TopicId,
     pub partition_id: PartitionId,
@@ -136,6 +162,7 @@ pub struct MessageRef {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Message {
     pub message_ref: MessageRef,
     pub message_key: String,
@@ -147,6 +174,7 @@ pub struct Message {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LogEntrySummary {
     pub timestamp: Timestamp,
     pub event_type: String,
@@ -154,11 +182,13 @@ pub struct LogEntrySummary {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct PublishLogEntry {
     pub message: Message,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct AckLogEntry {
     pub message_ref: MessageRef,
     pub subscription_id: SubscriptionId,
@@ -166,6 +196,7 @@ pub struct AckLogEntry {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NackLogEntry {
     pub message_ref: MessageRef,
     pub subscription_id: SubscriptionId,
@@ -173,6 +204,7 @@ pub struct NackLogEntry {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct NewConsumerLogEntry {
     pub topic_id: TopicId,
     pub subscription_id: SubscriptionId,
@@ -180,6 +212,7 @@ pub struct NewConsumerLogEntry {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct DropConsumerLogEntry {
     pub topic_id: TopicId,
     pub subscription_id: SubscriptionId,
@@ -187,6 +220,7 @@ pub struct DropConsumerLogEntry {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct KeyAffinityLogEntry {
     pub topic_id: TopicId,
     pub subscription_id: SubscriptionId,
@@ -195,6 +229,7 @@ pub struct KeyAffinityLogEntry {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum LogEntryDetail {
     Publish(PublishLogEntry),
     Ack(AckLogEntry),
@@ -205,6 +240,7 @@ pub enum LogEntryDetail {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct LogEntry {
     pub timestamp: Timestamp,
     pub event_type: String,
@@ -213,17 +249,18 @@ pub struct LogEntry {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum RequestOutcome {
     Success,
-    NoData,
-    Warning,
-    Error,
+    NoData(String),
+    Warning(String),
+    Error(String),
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Response<T> {
     pub outcome: RequestOutcome,
-    pub message: Option<String>,
     pub data: Option<T>,
 }
 
@@ -231,28 +268,24 @@ impl<T> Response<T> {
     pub fn success(data: T) -> Self {
         Self {
             outcome: RequestOutcome::Success,
-            message: None,
             data: Some(data),
         }
     }
     pub fn no_data(msg: &str) -> Self {
         Self {
-            outcome: RequestOutcome::NoData,
-            message: Some(msg.to_owned()),
+            outcome: RequestOutcome::NoData(msg.to_owned()),
             data: None,
         }
     }
     pub fn warning(msg: &str) -> Self {
         Self {
-            outcome: RequestOutcome::Warning,
-            message: Some(msg.to_owned()),
+            outcome: RequestOutcome::Warning(msg.to_owned()),
             data: None,
         }
     }
     pub fn error(msg: &str) -> Self {
         Self {
-            outcome: RequestOutcome::Error,
-            message: Some(msg.to_owned()),
+            outcome: RequestOutcome::Error(msg.to_owned()),
             data: None,
         }
     }

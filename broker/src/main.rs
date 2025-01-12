@@ -1,7 +1,7 @@
 use config::Config;
 use log::LevelFilter;
 use pulsar_rust_broker::{
-    api_bin_sockets, api_http_warp,
+    api_bin, api_http,
     data::DataLayer,
     model::cluster::Cluster,
     observability::Metrics,
@@ -25,7 +25,9 @@ use std::{
 use tokio::task;
 
 #[cfg(debug_assertions)]
-use pulsar_rust_broker::model::cluster::{DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT};
+use pulsar_rust_broker::model::cluster::{
+    DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT,
+};
 
 #[tokio::main]
 async fn main() {
@@ -198,11 +200,11 @@ async fn main() {
 
     // Serve binary serialized requests over TCP/IP
     let admin_endpoint = SocketAddrV4::new(ip_address, my_node.pubsub_port());
-    let api_bin_handle = api_bin_sockets::serve(&app, admin_endpoint);
+    let api_bin_handle = api_bin::serve(&app, admin_endpoint);
 
     // Serve requests over http using warp and wait for it to terminate
     let admin_endpoint = SocketAddrV4::new(ip_address, my_node.admin_port());
-    api_http_warp::serve(&app, admin_endpoint).await;
+    api_http::serve(&app, admin_endpoint).await;
 
     // Wait for the bin api to terminate
     api_bin_handle.join().unwrap();

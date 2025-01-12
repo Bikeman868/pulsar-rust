@@ -24,6 +24,18 @@ impl BufferPool {
         }
     }
 
+    pub fn get_with_capacity(self: &Self, size: MessageLength, capacity: MessageLength) -> Vec<u8> {
+        if capacity <= S_CAPACICY {
+            BufferPool::get_internal(&self.s, S_CAPACICY, size)
+        } else if capacity <= M_CAPACICY {
+            BufferPool::get_internal(&self.m, M_CAPACICY, size)
+        } else if capacity <= L_CAPACICY {
+            BufferPool::get_internal(&self.l, L_CAPACICY, size)
+        } else {
+            BufferPool::get_internal(&self.xl, capacity, size)
+        }
+    }
+
     pub fn get(self: &Self, size: MessageLength) -> Vec<u8> {
         if size <= S_CAPACICY {
             BufferPool::get_internal(&self.s, S_CAPACICY, size)

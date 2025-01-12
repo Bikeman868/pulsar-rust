@@ -1,9 +1,15 @@
 use super::{buffer_pool::BufferPool, MessageLength};
-use log::{error, warn, info};
+use log::{error, info, warn};
 use std::{
     io::{ErrorKind, Read, Write},
     net::TcpStream,
-    sync::{atomic::{AtomicBool, Ordering}, mpsc::{Receiver, Sender, TryRecvError}, Arc}, thread::{self}, time::{Duration, Instant},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{Receiver, Sender, TryRecvError},
+        Arc,
+    },
+    thread::{self},
+    time::{Duration, Instant},
 };
 
 #[cfg(debug_assertions)]
@@ -31,7 +37,7 @@ impl TcpChannel {
         stop_signal: &Arc<AtomicBool>,
     ) -> Self {
         info!("TcpChannel: Created");
-        
+
         let thread = TcpThread::new(receiver, sender, stream, buffer_pool, stop_signal);
         thread::spawn(move || thread.run());
 
@@ -117,16 +123,16 @@ impl TcpThread {
         let message = match self.channel_rx.try_recv() {
             Ok(message) => message,
             Err(e) => match e {
-                TryRecvError::Empty => { return }
+                TryRecvError::Empty => return,
                 TryRecvError::Disconnected => {
                     self.fatal(&"Channel receiver disconnected");
-                    return
+                    return;
                 }
-            }
+            },
         };
 
         self.last_message_instant = Instant::now();
-        
+
         let len = message.len();
         let length: MessageLength = len
             .try_into()
@@ -154,26 +160,23 @@ impl TcpThread {
                 Ok(_) => {
                     return true;
                 }
-                Err(e) => {
-                    match e.kind(){
-                        ErrorKind::ConnectionReset | 
-                        ErrorKind::ConnectionAborted | 
-                        ErrorKind::NotConnected => {
-                            self.fatal("Tx stream closed by other party");
-                            return false;
-                        }
-                        ErrorKind::WouldBlock => {
-                        }
-                        ErrorKind::TimedOut => {
-                            warn!("TcpThread Tx: Timeout sending length: {e}");
-                        },
-                        ErrorKind::OutOfMemory => {
-                            self.fatal("Out of memory sending length");
-                            return false;
-                        }
-                        _ => {}
+                Err(e) => match e.kind() {
+                    ErrorKind::ConnectionReset
+                    | ErrorKind::ConnectionAborted
+                    | ErrorKind::NotConnected => {
+                        self.fatal("Tx stream closed by other party");
+                        return false;
                     }
-                }
+                    ErrorKind::WouldBlock => {}
+                    ErrorKind::TimedOut => {
+                        warn!("TcpThread Tx: Timeout sending length: {e}");
+                    }
+                    ErrorKind::OutOfMemory => {
+                        self.fatal("Out of memory sending length");
+                        return false;
+                    }
+                    _ => {}
+                },
             }
             retry_count += 1;
             if retry_count > MAX_TX_RETRY_COUNT {
@@ -186,31 +189,31 @@ impl TcpThread {
     }
 
     fn try_receive(self: &mut Self) {
-        match self.stream.read(&mut self.receive_buffer[self.receive_buffer_count..]) {
+        match self
+            .stream
+            .read(&mut self.receive_buffer[self.receive_buffer_count..])
+        {
             Ok(byte_count) if byte_count == 0 => {}
             Ok(byte_count) => {
                 #[cfg(debug_assertions)]
                 debug!("TcpThread Rx: Received {byte_count} bytes");
                 self.receive_buffer_count += byte_count;
             }
-            Err(err) => {
-                match err.kind() {
-                    ErrorKind::ConnectionReset |
-                    ErrorKind::ConnectionAborted |
-                    ErrorKind::NotConnected => {
-                        self.fatal("Rx stream closed by other party");
-                    }
-                    ErrorKind::WouldBlock => {
-                    }
-                    ErrorKind::TimedOut => {
-                        warn!("TcpThread Rx: Timeout reading from TcpStream");
-                    },
-                    ErrorKind::OutOfMemory => {
-                        self.fatal("Out of memory reading from TcpStream");
-                    }
-                    _ => {}
+            Err(err) => match err.kind() {
+                ErrorKind::ConnectionReset
+                | ErrorKind::ConnectionAborted
+                | ErrorKind::NotConnected => {
+                    self.fatal("Rx stream closed by other party");
                 }
-            }
+                ErrorKind::WouldBlock => {}
+                ErrorKind::TimedOut => {
+                    warn!("TcpThread Rx: Timeout reading from TcpStream");
+                }
+                ErrorKind::OutOfMemory => {
+                    self.fatal("Out of memory reading from TcpStream");
+                }
+                _ => {}
+            },
         }
     }
 
@@ -218,23 +221,28 @@ impl TcpThread {
         loop {
             let residual_byte_count = self.receive_buffer_count - self.consumed_count;
             if residual_byte_count < MESSAGE_LENGTH_SIZE {
-                break
+                break;
             }
 
             #[cfg(debug_assertions)]
-            debug!("TcpThread Rx: residual_byte_count:{residual_byte_count}. consumed_count:{} ", self.consumed_count);
+            debug!(
+                "TcpThread Rx: residual_byte_count:{residual_byte_count}. consumed_count:{} ",
+                self.consumed_count
+            );
 
             let length_start_index = self.consumed_count;
             let length_end_index = length_start_index + MESSAGE_LENGTH_SIZE;
-            let length_bytes = self.receive_buffer[length_start_index..length_end_index].try_into().unwrap();
+            let length_bytes = self.receive_buffer[length_start_index..length_end_index]
+                .try_into()
+                .unwrap();
             let message_length = MessageLength::from_le_bytes(length_bytes);
 
             #[cfg(debug_assertions)]
             debug!("TcpThread Rx: Next message is {message_length} bytes");
-            
+
             let entire_length = MESSAGE_LENGTH_SIZE + message_length as usize;
             if residual_byte_count < entire_length {
-                break
+                break;
             }
 
             let mut message = self.buffer_pool.get(message_length);
@@ -244,7 +252,7 @@ impl TcpThread {
 
             #[cfg(debug_assertions)]
             debug!("TcpThread Rx: Extracted message {message:?}");
-    
+
             self.consumed_count += entire_length;
 
             match self.channel_tx.send(message) {
@@ -254,7 +262,7 @@ impl TcpThread {
                 }
                 Err(e) => {
                     self.fatal(&format!("Failed to post message to channel: {e}"));
-                    return
+                    return;
                 }
             }
         }
@@ -267,7 +275,10 @@ impl TcpThread {
             let space_remaining = RECEIVE_BUFFER_SIZE - self.receive_buffer_count;
             if space_remaining < MAX_MESSAGE_SIZE {
                 #[cfg(debug_assertions)]
-                debug!("TcpThread Rx: Making room in buffer. consumed:{} space:{}", self.consumed_count, space_remaining);
+                debug!(
+                    "TcpThread Rx: Making room in buffer. consumed:{} space:{}",
+                    self.consumed_count, space_remaining
+                );
                 self.receive_buffer.copy_within(self.consumed_count.., 0);
                 self.receive_buffer_count -= self.consumed_count;
                 self.consumed_count = 0;

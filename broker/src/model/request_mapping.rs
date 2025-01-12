@@ -6,23 +6,19 @@ use pulsar_rust_net::{
 
 use super::messages::MessageRef;
 
-impl From<&super::messages::PublishedMessage> for requests::Message {
+impl From<&super::messages::PublishedMessage> for requests::Publish {
     fn from(value: &super::messages::PublishedMessage) -> Self {
         Self {
             topic_id: value.message_ref.topic_id,
             partition_id: value.message_ref.partition_id,
-            key: if value.key.len() == 0 {
-                None
-            } else {
-                Some(value.key.clone())
-            },
+            key: value.key.clone(),
             timestamp: Some(value.timestamp),
             attributes: value.attributes.clone(),
         }
     }
 }
 
-impl Into<super::messages::PublishedMessage> for requests::Message {
+impl Into<super::messages::PublishedMessage> for requests::Publish {
     fn into(self) -> super::messages::PublishedMessage {
         super::messages::PublishedMessage {
             message_ref: MessageRef {
@@ -31,10 +27,7 @@ impl Into<super::messages::PublishedMessage> for requests::Message {
                 ledger_id: LedgerId::default(),
                 message_id: MessageId::default(),
             },
-            key: match self.key {
-                Some(key) => key.clone(),
-                None => String::default(),
-            },
+            key: self.key.clone(),
             timestamp: match self.timestamp {
                 Some(epoch_time) => epoch_time,
                 None => now_epoc_millis(),

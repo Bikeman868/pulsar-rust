@@ -30,7 +30,7 @@ async fn get_partitions_by_topic_name(
 }
 
 async fn publish_message(
-    message: requests::Message,
+    message: requests::Publish,
     app: Arc<App>,
 ) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_PUB_MESSAGE_COUNT);

@@ -1,15 +1,20 @@
-use std::{collections::HashMap, net::TcpStream, sync::{
-    atomic::{AtomicBool, Ordering},
-    mpsc::{channel, SendError, Sender},
-    Arc, RwLock,
-}, thread};
+use std::{
+    collections::HashMap,
+    net::TcpStream,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc::{channel, SendError, Sender},
+        Arc, RwLock,
+    },
+    thread,
+};
 
 use log::info;
 use pulsar_rust_net::sockets::buffer_pool::BufferPool;
 
 use super::{
+    connection_thread::ConnectionThread,
     server::{ConnectionId, ServerMessage},
-    connection_thread::ConnectionThread
 };
 
 pub(crate) struct Connection {
@@ -51,7 +56,10 @@ impl Connection {
         self.stop_signal.store(true, Ordering::Relaxed);
     }
 
-    pub(crate) fn send(self: &Self, message: ServerMessage ) -> Result<(), SendError<ServerMessage>> {
+    pub(crate) fn send(
+        self: &Self,
+        message: ServerMessage,
+    ) -> Result<(), SendError<ServerMessage>> {
         self.sender.send(message)
     }
 }

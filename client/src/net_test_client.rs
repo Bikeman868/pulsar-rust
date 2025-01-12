@@ -1,15 +1,26 @@
-use pulsar_rust_client::api_bin_sockets::client::Client;
-use pulsar_rust_net::sockets::{buffer_pool::BufferPool, MessageLength};
+use pulsar_rust_client::api_bin::client::Client;
+use pulsar_rust_net::{data_types::TopicId, sockets::buffer_pool::BufferPool};
 use std::{
+    collections::HashMap,
     sync::{Arc, Barrier, RwLock},
     thread::{self, available_parallelism},
     time::Instant,
 };
 
-pub async fn run_test() -> super::Result<()> {
+pub fn run_test() {
     let authority = "localhost:8001";
+
+    #[cfg(debug_assertions)]
+    let repeat_count: usize = 3;
+    #[cfg(debug_assertions)]
+    let concurrency = 1;
+
+    #[cfg(not(debug_assertions))]
     let repeat_count: usize = 10000;
-    let concurrency = available_parallelism().expect("Can't get the number of CPUs").get();
+    #[cfg(not(debug_assertions))]
+    let concurrency = available_parallelism()
+        .expect("Can't get the number of CPUs")
+        .get();
 
     let buffer_pool = Arc::new(BufferPool::new());
 
@@ -17,7 +28,6 @@ pub async fn run_test() -> super::Result<()> {
     let barrier = Arc::new(Barrier::new(concurrency));
 
     let mut threads: Vec<thread::JoinHandle<()>> = Vec::with_capacity(concurrency);
-    let message_size = 10 as MessageLength;
 
     for _ in 0..concurrency {
         let buffer_pool = buffer_pool.clone();
@@ -26,30 +36,52 @@ pub async fn run_test() -> super::Result<()> {
         threads.push(thread::spawn(move || {
             let mut client = Client::new(&buffer_pool, authority);
             client.connect();
+
+            // Wait for all threads to have a connection before strting the timer
             barrier.wait();
             *start.write().unwrap() = Instant::now();
 
-            for _ in 0..repeat_count {
-                let mut message = buffer_pool.get(message_size);
-                for i in 0..message_size {
-                    message[i as usize] = i as u8;
-                }
+            // Publish a message
+            let topic_id: TopicId = 1;
+            let mut attributes = HashMap::new();
+            attributes.insert(String::from("order_number"), String::from("ABC123"));
+            client.publish(topic_id, None, None, attributes).unwrap();
 
-                if let Err(e) = client.send(message) {
-                    panic!("TestClient: {e}");
-                }
-            }
+            // for _ in 0..repeat_count {
+            //     request_id += 1;
 
-            for _ in 0..repeat_count {
-                match client.recv() {
-                    Ok(message) => {
-                        buffer_pool.reuse(message);
-                    }
-                    Err(e) => {
-                        panic!("TestClient: {e}");
-                    }
-                }
-            }
+            //     let payload = NegotiateVersion{ min_version: 1, max_version: 1 };
+            //     let request = Request{
+            //         request_id,
+            //         payload: RequestPayload::NegotiateVersion(payload),
+            //     };
+
+            //     #[cfg(debug_assertions)]
+            //     debug!("TestClient: Sending {:?}", request);
+
+            //     let message = serializer.serialize_request(&request).unwrap();
+
+            //     if let Err(e) = client.send(message) {
+            //         panic!("TestClient: {e}");
+            //     }
+            // }
+
+            // for _ in 0..repeat_count {
+            //     match client.recv() {
+            //         Ok(message) => {
+            //             match serializer.deserialize_response(message) {
+            //                 Ok(response) => {
+            //                     #[cfg(debug_assertions)]
+            //                     debug!("TestClient: Received {:?}", response);
+            //                 },
+            //                 Err(err) => match err {
+            //                     DeserializeError::Error { msg } => panic!("TestClient: {}", msg),
+            //                 }
+            //             }
+            //         }
+            //         Err(err) => { panic!("TestClient: {err}"); }
+            //     }
+            // }
         }))
     }
 
@@ -66,23 +98,25 @@ pub async fn run_test() -> super::Result<()> {
     );
     println!(
         "Average throughput {} req/sec",
-        thousands(&((concurrency * repeat_count) as f32 / (elapsed.as_micros() as f32 / 1000000.0)).floor().to_string())
+        thousands(
+            &((concurrency * repeat_count) as f32 / (elapsed.as_micros() as f32 / 1000000.0))
+                .floor()
+                .to_string()
+        )
     );
     println!(
         "Average latency {} µs",
         ((elapsed.as_micros() as f32) / ((concurrency * repeat_count) as f32)).floor()
     );
-
-    Ok(())
 }
 
 fn thousands(number: &str) -> String {
     number
-    .as_bytes()
-    .rchunks(3)
-    .rev()
-    .map(std::str::from_utf8)
-    .collect::<Result<Vec<&str>, _>>()
-    .unwrap()
-    .join(",")
+        .as_bytes()
+        .rchunks(3)
+        .rev()
+        .map(std::str::from_utf8)
+        .collect::<Result<Vec<&str>, _>>()
+        .unwrap()
+        .join(",")
 }

@@ -14,7 +14,7 @@ use super::{
     router_thread::RouterThread,
     server::{ConnectionId, ServerMessage},
 };
-use log::{warn, info};
+use log::{info, warn};
 use pulsar_rust_net::sockets::buffer_pool::BufferPool;
 
 /// A thread that owns a Tcp listener, accepts connections to a listener and spawns a thread to handle

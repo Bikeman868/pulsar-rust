@@ -20,8 +20,8 @@ use super::{
     server::{Server, ServerMessage},
 };
 
-const IDLE_LIMIT_DURATION: Duration =  Duration::from_millis(50);
-const IDLE_SLEEP_DURATION: Duration =  Duration::from_millis(10);
+const IDLE_LIMIT_DURATION: Duration = Duration::from_millis(50);
+const IDLE_SLEEP_DURATION: Duration = Duration::from_millis(10);
 
 pub(crate) struct ProcessingThreadPool {
     stop_signal: Arc<AtomicBool>,

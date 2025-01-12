@@ -1,4 +1,4 @@
-use log::{warn, info};
+use log::{info, warn};
 use std::{
     collections::HashMap,
     net::TcpStream,
@@ -11,10 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use pulsar_rust_net::sockets::{
-    buffer_pool::BufferPool,
-    tcp_channel::TcpChannel,
-};
+use pulsar_rust_net::sockets::{buffer_pool::BufferPool, tcp_channel::TcpChannel};
 
 use super::{
     connection::Connection,
@@ -24,8 +21,8 @@ use super::{
 #[cfg(debug_assertions)]
 use log::debug;
 
-const IDLE_LIMIT_DURATION: Duration =  Duration::from_millis(50);
-const IDLE_SLEEP_DURATION: Duration =  Duration::from_millis(10);
+const IDLE_LIMIT_DURATION: Duration = Duration::from_millis(50);
+const IDLE_SLEEP_DURATION: Duration = Duration::from_millis(10);
 
 /// A thread that moves messages between a Tcp stream and a pair of channels
 pub(crate) struct ConnectionThread {
@@ -55,15 +52,12 @@ impl ConnectionThread {
         let (tcp_sender, tcp_request_receiver) = channel();
 
         stream.set_nonblocking(true).unwrap();
-        stream.set_read_timeout(Some(Duration::from_millis(5))).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_millis(5)))
+            .unwrap();
 
-        let tcp_channel = TcpChannel::new(
-            tcp_receiver,
-            tcp_sender,
-            stream,
-            buffer_pool,
-            stop_signal,
-        );
+        let tcp_channel =
+            TcpChannel::new(tcp_receiver, tcp_sender, stream, buffer_pool, stop_signal);
 
         Self {
             response_receiver: receiver,
@@ -98,7 +92,7 @@ impl ConnectionThread {
             Ok(message) => {
                 self.last_message_instant = Instant::now();
                 #[cfg(debug_assertions)]
-                debug!("ConnectionThread: Received message from channel: {message:?}");
+                debug!("ConnectionThread: Received response from channel: {message:?}");
                 match self.tcp_response_sender.send(message.body) {
                     Ok(_) => (),
                     Err(err) => {
@@ -119,8 +113,11 @@ impl ConnectionThread {
             Ok(message) => {
                 self.last_message_instant = Instant::now();
                 #[cfg(debug_assertions)]
-                debug!("ConnectionThread: Received message from Tcp: {message:?}");
-                match self.request_sender.send(ServerMessage{ body: message, connection_id: self.connection_id }) {
+                debug!("ConnectionThread: Received request from Tcp: {message:?}");
+                match self.request_sender.send(ServerMessage {
+                    body: message,
+                    connection_id: self.connection_id,
+                }) {
                     Ok(_) => (),
                     Err(err) => {
                         self.fatal(&"Request sender channel disconnected");

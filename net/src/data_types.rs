@@ -2,6 +2,7 @@
 Aliases for data types for readability and to allow resizing in future
 */
 
+pub type ContractVersionNumber = u16; // Up to 65 thousand versions of the API
 pub type Timestamp = u64; // Compatible with Rust time library
 pub type VersionNumber = u32; // Allows 4 billion updates to each database record
 pub type PortNumber = u16; // Conforms to TCP/IP port numbering

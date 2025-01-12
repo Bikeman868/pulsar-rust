@@ -30,11 +30,11 @@ pub mod services;
 
 /// Layer 5
 /// Low performance http REST API for managing nodes, topics, partitions and subscriptions
-pub mod api_http_warp;
+pub mod api_http;
 
 /// Layer 5
 /// High performance API streaming binary data to and from the client
-pub mod api_bin_sockets;
+pub mod api_bin;
 
 /// Socket communications between nodes to keep the cluster in sync
 pub mod node_sync;

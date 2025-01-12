@@ -1,4 +1,4 @@
-use crate::api_bin_sockets::listener_thread::ListenerThread;
+use crate::api_bin::listener_thread::ListenerThread;
 use log::info;
 use pulsar_rust_net::sockets::buffer_pool::BufferPool;
 use std::{
@@ -34,9 +34,8 @@ pub(crate) struct Server {
 /// they go to the right client.
 impl Server {
     pub(crate) fn new(buffer_pool: &Arc<BufferPool>, authority: &str) -> Self {
-        let listener = TcpListener::bind(authority).expect(&format!(
-            "Server: Failed to listen on {authority}"
-        ));
+        let listener = TcpListener::bind(authority)
+            .expect(&format!("Server: Failed to listen on {authority}"));
         info!("Server: Constructed for {authority}");
         let stop_signal = Arc::new(AtomicBool::new(false));
         let port = listener.local_addr().unwrap().port();

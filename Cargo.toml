@@ -27,5 +27,6 @@ statsd = { version = "*" }
 rand = { version = "*" }
 regex = { version = "*" }
 lazy_static = { version = "*" }
-log = { version = "*", features = ["kv"] }
+log = { version = "*" }
 colog = { version = "*" }
+uuid = { version ="*", features = ["v4"] }

@@ -1,8 +1,5 @@
-use log::info;
-use pulsar_rust_net::sockets::{
-    buffer_pool::BufferPool, 
-    tcp_channel::TcpChannel,
-};
+use log::{error, info};
+use pulsar_rust_net::sockets::{buffer_pool::BufferPool, tcp_channel::TcpChannel};
 use std::{
     net::TcpStream,
     sync::{
@@ -14,6 +11,7 @@ use std::{
 };
 
 pub(crate) type ClientMessage = Vec<u8>;
+const MAX_MESSAGE_LENGTH: usize = 512;
 
 /// Opens a connection to a host endpoint and owns a thread that sends requests and
 /// receives replies into mpsc channels
@@ -31,14 +29,21 @@ impl Connection {
         info!("Connection: Connected to {}", authority);
 
         stream.set_nonblocking(true).unwrap();
-        stream.set_read_timeout(Some(Duration::from_millis(5))).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_millis(5)))
+            .unwrap();
 
         let stop_signal = Arc::new(AtomicBool::new(false));
         let (request_sender, request_receiver) = channel::<ClientMessage>();
         let (response_sender, response_receiver) = channel::<ClientMessage>();
 
-        let tcp_channel =
-            TcpChannel::new(request_receiver, response_sender, stream, &buffer_pool, &stop_signal);
+        let tcp_channel = TcpChannel::new(
+            request_receiver,
+            response_sender,
+            stream,
+            &buffer_pool,
+            &stop_signal,
+        );
 
         Self {
             stop_signal,
@@ -66,6 +71,15 @@ impl Connection {
 
     /// Non-blocking call that queues a message to send to the host
     pub fn send(&self, message: ClientMessage) -> Result<(), SendError<ClientMessage>> {
-        self.request_sender.send(message)
+        if message.len() > MAX_MESSAGE_LENGTH {
+            error!(
+                "Connection: Message length {} exceeds maximum length of {}",
+                message.len(),
+                MAX_MESSAGE_LENGTH
+            );
+            Err(SendError(message))
+        } else {
+            self.request_sender.send(message)
+        }
     }
 }

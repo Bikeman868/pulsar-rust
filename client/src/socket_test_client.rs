@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-pub async fn run_test() -> super::Result<()> {
+pub fn run_test() {
     let authority = "localhost:8000";
     let repeat_count: usize = 10000;
     let concurrency = available_parallelism()
@@ -56,8 +56,6 @@ pub async fn run_test() -> super::Result<()> {
         "Average latency {} µs",
         ((elapsed.as_micros() as f32) / ((concurrency * repeat_count) as f32)).floor()
     );
-
-    Ok(())
 }
 
 fn build_publish_request(authority: &str) -> String {
