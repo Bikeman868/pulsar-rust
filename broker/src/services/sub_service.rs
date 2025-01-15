@@ -5,7 +5,7 @@ be layered on top of this service to expose this funtionallity to applicatins.
 
 use std::sync::Arc;
 
-use pulsar_rust_net::data_types::{ConsumerId, SubscriptionId, TopicId};
+use pulsar_rust_net::data_types::{ConsumerId, MessageCount, SubscriptionId, TopicId};
 
 use crate::{
     model::{
@@ -26,11 +26,21 @@ pub enum SubError {
     LedgerNotFound,
     MessageNotFound,
     NoneAvailable,
+    FailedToAllocateConsumerId,
 }
 
-pub type SubOk = (SubscribedMessage, PublishedMessage);
+pub struct NextMessage {
+    pub subscribed_message: SubscribedMessage,
+    pub published_message: PublishedMessage,
+}
 
-pub type SubResult = Result<SubOk, SubError>;
+pub struct ConsumedMessages {
+    pub consumer_id: ConsumerId,
+    pub messages: Vec<NextMessage>,
+}
+
+pub type NextMessageResult = Result<NextMessage, SubError>;
+pub type ConsumeResult = Result<ConsumedMessages, SubError>;
 pub type AckResult = Result<bool, SubError>;
 pub type NackResult = Result<bool, SubError>;
 
@@ -70,17 +80,72 @@ impl SubService {
             .find(|subscription| subscription.name() == subscription_name)
     }
 
-    pub fn allocate_consumer_id(
+    pub fn consume_max_messages(
         self: &Self,
         topic_id: TopicId,
         subscription_id: SubscriptionId,
-    ) -> Option<ConsumerId> {
-        self.cluster
-            .topics()
-            .get(&topic_id)?
-            .subscriptions()
-            .get(&subscription_id)?
-            .connect_consumer()
+        consumer_id: Option<ConsumerId>,
+        max_messages: MessageCount,
+    ) -> ConsumeResult {
+        let topic = self.cluster.topics().get(&topic_id);
+        if topic.is_none() {
+            return Err(SubError::TopicNotFound);
+        }
+        let topic = topic.unwrap();
+
+        let subscription = topic.subscriptions().get(&subscription_id);
+        if subscription.is_none() {
+            return Err(SubError::SubscriptionNotFound);
+        }
+        let subscription = subscription.unwrap();
+
+        let consumer_id = match consumer_id {
+            Some(id) => Some(id),
+            None => subscription.connect_consumer(),
+        };
+        if consumer_id.is_none() {
+            return Err(SubError::FailedToAllocateConsumerId);
+        }
+        let consumer_id = consumer_id.unwrap();
+
+        let mut messages = Vec::new();
+
+        for _ in 0..max_messages {
+            match subscription.pop(consumer_id) {
+                Some(subscribed_message) => {
+                    let message_ref = MessageRef::from_key(&subscribed_message.message_ref_key);
+                    match topic.partitions().get(&message_ref.partition_id) {
+                        Some(partition) => match partition.ledgers().get(&message_ref.ledger_id) {
+                            Some(ledger) => match ledger.get_message(&message_ref.message_id) {
+                                Some(published_message) => {
+                                    messages.push(NextMessage {
+                                        subscribed_message,
+                                        published_message,
+                                    });
+                                }
+                                None => {
+                                    break;
+                                }
+                            },
+                            None => {
+                                break;
+                            }
+                        },
+                        None => {
+                            break;
+                        }
+                    }
+                }
+                None => {
+                    break;
+                }
+            }
+        }
+
+        Ok(ConsumedMessages {
+            consumer_id,
+            messages,
+        })
     }
 
     pub fn next_message(
@@ -88,20 +153,21 @@ impl SubService {
         topic_id: TopicId,
         subscription_id: SubscriptionId,
         consumer_id: ConsumerId,
-    ) -> SubResult {
+    ) -> NextMessageResult {
         match self.cluster.topics().get(&topic_id) {
             Some(topic) => match topic.subscriptions().get(&subscription_id) {
                 Some(subscription) => match subscription.pop(consumer_id) {
-                    Some(message) => {
-                        let message_ref = MessageRef::from_key(&message.message_ref_key);
+                    Some(subscribed_message) => {
+                        let message_ref = MessageRef::from_key(&subscribed_message.message_ref_key);
                         match topic.partitions().get(&message_ref.partition_id) {
                             Some(partition) => {
                                 match partition.ledgers().get(&message_ref.ledger_id) {
                                     Some(ledger) => {
                                         match ledger.get_message(&message_ref.message_id) {
-                                            Some(published_message) => {
-                                                Ok((message, published_message))
-                                            }
+                                            Some(published_message) => Ok(NextMessage {
+                                                subscribed_message,
+                                                published_message,
+                                            }),
                                             None => Err(SubError::LedgerNotFound),
                                         }
                                     }

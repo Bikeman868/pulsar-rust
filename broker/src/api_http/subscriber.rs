@@ -2,7 +2,7 @@ use super::with_app;
 use crate::{observability::Metrics, services::sub_service::SubError, App};
 use pulsar_rust_net::{
     contracts::v1::{requests, responses},
-    data_types::{ConsumerId, SubscriptionId, TopicId},
+    data_types::{ConsumerId, SubscriptionId, TopicId}, error_codes::ERROR_CODE_GENERAL_FAILURE,
 };
 use std::sync::Arc;
 use warp::{body, get, path, post, reply, Filter, Rejection, Reply};
@@ -15,27 +15,28 @@ async fn get_message(
 ) -> Result<impl Reply, Rejection> {
     app.metrics.incr(Metrics::METRIC_HTTP_SUB_MESSAGE_COUNT);
     let response = match app.sub_service.next_message(topic_id, subscription_id, consumer_id) {
-        Ok((subscribed_message, published_message)) => {
+        Ok(message) => {
             let message = responses::Message {
-                message_ref: responses::MessageRef::from(&published_message.message_ref),
-                message_key: published_message.key.clone(),
-                message_ack_key: published_message.message_ref.to_key(),
-                published: published_message.published,
-                attributes: published_message.attributes,
-                delivered: subscribed_message.delivered_timestamp.unwrap(),
-                delivery_count: subscribed_message.delivery_count,
+                message_ref: responses::MessageRef::from(&message.published_message.message_ref),
+                message_key: message.published_message.key.clone(),
+                message_ack_key: message.published_message.message_ref.to_key(),
+                published: message.published_message.published,
+                attributes: message.published_message.attributes,
+                delivered: message.subscribed_message.delivered_timestamp.unwrap(),
+                delivery_count: message.subscribed_message.delivery_count,
             };
             responses::Response::success(message)
         }
         Err(err) => {
             match err {
-                SubError::Error(msg) => responses::Response::error(&msg),
+                SubError::Error(msg) => responses::Response::error(&msg, ERROR_CODE_GENERAL_FAILURE),
                 SubError::TopicNotFound => responses::Response::warning(&format!("No topic found with id {topic_id}")),
                 SubError::SubscriptionNotFound => responses::Response::warning(&format!("No subscription found with id {subscription_id}")),
                 SubError::PartitionNotFound => responses::Response::warning(&String::from("No partition found with this partition id. The partition may have been deleted")),
                 SubError::LedgerNotFound => responses::Response::warning(&String::from("No ledger found found with this ledger id. The ledger may have been deleted")),
                 SubError::MessageNotFound => responses::Response::warning(&String::from("No message found with this message id. The message may have been acked by all subscriptions")),
                 SubError::NoneAvailable => responses::Response::no_data(&String::from("There are no more messages available at this time")),
+                SubError::FailedToAllocateConsumerId => responses::Response::warning("Failed allocate consumer id"),
             }
         }
     };
@@ -56,22 +57,28 @@ async fn get_topics(app: Arc<App>) -> Result<impl Reply, Rejection> {
     )))
 }
 
-async fn allocate_consumer(
-    body: requests::Consumer,
-    app: Arc<App>,
-) -> Result<impl Reply, Rejection> {
-    app.metrics.incr(Metrics::METRIC_HTTP_SUB_CONSUMER_COUNT);
-    let maybe_consumer_id = app
-        .sub_service
-        .allocate_consumer_id(body.topic_id, body.subscription_id);
+async fn consume(body: requests::Consume, app: Arc<App>) -> Result<impl Reply, Rejection> {
+    app.metrics.incr(Metrics::METRIC_HTTP_SUB_CONSUME_COUNT);
 
-    let response = if let Some(consumer_id) = maybe_consumer_id {
-        responses::Response::success(responses::AllocateConsumerResult { consumer_id })
-    } else {
-        responses::Response::error(&format!(
-            "Unable to allocate consumer id for topic {} and subscription {}",
-            body.topic_id, body.subscription_id
-        ))
+    let response = match app.sub_service.consume_max_messages(
+        body.topic_id,
+        body.subscription_id,
+        body.consumer_id,
+        body.max_messages,
+    ) {
+        Ok(result) => responses::Response::success(responses::ConsumeResult::from(&result)),
+        Err(err) => match err {
+            SubError::Error(msg) => responses::Response::error(&msg, ERROR_CODE_GENERAL_FAILURE),
+            SubError::TopicNotFound => responses::Response::warning("Topic not found"),
+            SubError::SubscriptionNotFound => responses::Response::warning("Subscription not found"),
+            SubError::PartitionNotFound => responses::Response::warning("Partition not found"),
+            SubError::LedgerNotFound => responses::Response::warning("Ledger not found"),
+            SubError::MessageNotFound => responses::Response::warning("Message not found in ledger"),
+            SubError::NoneAvailable => responses::Response::no_data("No messages available"),
+            SubError::FailedToAllocateConsumerId => {
+                responses::Response::error("Failed to allocate consumer id", ERROR_CODE_GENERAL_FAILURE)
+            }
+        },
     };
     Ok(reply::json(&response))
 }
@@ -81,36 +88,39 @@ async fn ack_message(body: requests::Ack, app: Arc<App>) -> Result<impl Reply, R
     let response =
         match app
             .sub_service
-            .ack(body.message_ack_key, body.subscription_id, body.consumer_id)
+            .ack(body.message_ref_key, body.subscription_id, body.consumer_id)
         {
             Ok(found) => {
                 if found {
-                    responses::Response::success(responses::AckResult {})
+                    responses::Response::success(responses::AckResult { success: true })
                 } else {
-                    responses::Response::error(&String::from(
+                    responses::Response::warning(&String::from(
                         "No message found with this id, maybe this was acked already",
                     ))
                 }
             }
             Err(err) => match err {
-                SubError::Error(msg) => responses::Response::error(&msg),
+                SubError::Error(msg) => responses::Response::error(&msg, ERROR_CODE_GENERAL_FAILURE),
                 SubError::TopicNotFound => {
-                    responses::Response::error(&String::from("No topic found with this id"))
+                    responses::Response::warning(&String::from("No topic found with this id"))
                 }
                 SubError::SubscriptionNotFound => {
-                    responses::Response::error(&String::from("No subscription found with this id"))
+                    responses::Response::warning(&String::from("No subscription found with this id"))
                 }
                 SubError::PartitionNotFound => {
-                    responses::Response::error(&String::from("No partition found with this id"))
+                    responses::Response::warning(&String::from("No partition found with this id"))
                 }
                 SubError::LedgerNotFound => {
-                    responses::Response::error(&String::from("No ledger found with this id"))
+                    responses::Response::warning(&String::from("No ledger found with this id"))
                 }
                 SubError::MessageNotFound => {
-                    responses::Response::error(&String::from("No message found with this id"))
+                    responses::Response::warning(&String::from("No message found with this id"))
                 }
                 SubError::NoneAvailable => {
-                    responses::Response::error(&String::from("No data was available"))
+                    responses::Response::no_data(&String::from("No data was available"))
+                }
+                SubError::FailedToAllocateConsumerId => {
+                    responses::Response::error(&String::from("Failed to allocate consumer id"), ERROR_CODE_GENERAL_FAILURE)
                 }
             },
         };
@@ -122,36 +132,39 @@ async fn nack_message(body: requests::Nack, app: Arc<App>) -> Result<impl Reply,
     let response =
         match app
             .sub_service
-            .nack(body.message_ack_key, body.subscription_id, body.consumer_id)
+            .nack(body.message_ref_key, body.subscription_id, body.consumer_id)
         {
             Ok(found) => {
                 if found {
-                    responses::Response::success(responses::AckResult {})
+                    responses::Response::success(responses::AckResult { success: true })
                 } else {
-                    responses::Response::error(&String::from(
+                    responses::Response::warning(&String::from(
                         "No message found with this id, maybe this was acked already",
                     ))
                 }
             }
             Err(err) => match err {
-                SubError::Error(msg) => responses::Response::error(&msg),
+                SubError::Error(msg) => responses::Response::error(&msg, ERROR_CODE_GENERAL_FAILURE),
                 SubError::TopicNotFound => {
-                    responses::Response::error(&String::from("No topic found with this id"))
+                    responses::Response::warning(&String::from("No topic found with this id"))
                 }
                 SubError::SubscriptionNotFound => {
-                    responses::Response::error(&String::from("No subscription found with this id"))
+                    responses::Response::warning(&String::from("No subscription found with this id"))
                 }
                 SubError::PartitionNotFound => {
-                    responses::Response::error(&String::from("No partition found with this id"))
+                    responses::Response::warning(&String::from("No partition found with this id"))
                 }
                 SubError::LedgerNotFound => {
-                    responses::Response::error(&String::from("No ledger found with this id"))
+                    responses::Response::warning(&String::from("No ledger found with this id"))
                 }
                 SubError::MessageNotFound => {
-                    responses::Response::error(&String::from("No message found with this id"))
+                    responses::Response::warning(&String::from("No message found with this id"))
                 }
                 SubError::NoneAvailable => {
-                    responses::Response::error(&String::from("No data was available"))
+                    responses::Response::no_data(&String::from("No data was available"))
+                }
+                SubError::FailedToAllocateConsumerId => {
+                    responses::Response::error(&String::from("Failed to allocate consumer id"), ERROR_CODE_GENERAL_FAILURE)
                 }
             },
         };
@@ -185,5 +198,5 @@ pub fn routes(app: &Arc<App>) -> impl Filter<Extract = impl Reply, Error = Rejec
         .and_then(get_topics))
     .or(path!("v1" / "sub" / "consumer")
         .and(post()).and(body::content_length_limit(512)).and(body::json()).and(with_app(app))
-        .and_then(allocate_consumer))
+        .and_then(consume))
 }

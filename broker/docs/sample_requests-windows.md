@@ -73,11 +73,11 @@ curl "http://localhost:8000/v1/pub/ping"
 
 curl "http://localhost:8000/v1/pub/partitions/topic-1"
 
-curl "http://localhost:8000/v1/pub/message" -X POST -H "Content-Type: application/json" --data "{""topic_id"":1, ""partition_id"":1, ""attributes"":{""order"":""abc123""}}"
+curl "http://localhost:8000/v1/pub/message" -X POST -H "Content-Type: application/json" --data "{""topic_id"":1, ""partition_id"":1, ""key"":""abc123"", ""attributes"":{""order"":""abc123""}}"
 
 ## Subscribing to messages
 
-curl "http://localhost:8000/v1/sub/consumer" -X POST -H "Content-Type: application/json" --data "{ ""topic_id"": 1, ""subscription_id"": 1 }"
+curl "http://localhost:8000/v1/sub/consumer" -X POST -H "Content-Type: application/json" --data "{ ""topic_id"": 1, ""subscription_id"": 1, ""max_messages"": 3 }"
 
 curl "http://localhost:8000/v1/sub/topic/1/subscription/1/consumer/1" -X DELETE
 

@@ -1,13 +1,3 @@
-use super::{connection::Connection, contracts::PublishResult};
-use log::{debug, info, warn};
-use pulsar_rust_net::{
-    bin_serialization::{
-        ContractSerializer, DeserializeError, Request, RequestId, RequestPayload, ResponsePayload,
-    },
-    contracts::v1::{self, requests::NegotiateVersion, responses::RequestOutcome},
-    data_types::{ContractVersionNumber, PartitionId, Timestamp, TopicId},
-    sockets::buffer_pool::BufferPool,
-};
 use std::{
     collections::HashMap,
     sync::{
@@ -16,20 +6,83 @@ use std::{
     },
 };
 use uuid::Uuid;
+use log::{debug, info, warn};
+use pulsar_rust_net::{
+    bin_serialization::{
+        ContractSerializer,
+        DeserializeError,
+        Request,
+        RequestId,
+        RequestPayload,
+        ResponsePayload,
+    },
+    contracts::v1::{
+        self, 
+        requests::NegotiateVersion, 
+        responses::RequestOutcome,
+    }, 
+    data_types::{
+        ConsumerId,
+        ContractVersionNumber,
+        ErrorCode,
+        MessageCount,
+        PartitionId,
+        SubscriptionId,
+        Timestamp,
+        TopicId,
+    },
+    error_codes::ERROR_CODE_INCORRECT_NODE, 
+    sockets::buffer_pool::BufferPool
+};
+use super::{
+    connection::Connection, 
+    contracts::{
+        ConsumeResult,
+        PublishResult,
+        AckResult,
+        NackResult,
+    }
+};
 
 pub(crate) type ClientMessage = Vec<u8>;
 
 #[derive(Debug)]
 pub enum ClientError {
+    /// The client is not connected to a broker
     NotConnected,
+
+    /// The connected broker does not support any API version supported by this client library
     IncompatibleVersion,
+
+    /// The broker returned a message version that is not supported by this client
     VersionNotSupported,
+
+    /// An error occurred sending the request to the broker
     SendError(SendError<Vec<u8>>),
+
+    /// The broker retuened an unsuccesfull outcome for the request
     BadOutcome(RequestOutcome),
+
+    /// The requested data does not exist on the broker
     NoData,
+
+    /// The broker returned a response that was in response to another request. This mostly
+    /// happens if you mix sync and async calls on the same connection
     IncorrectResponseType,
+
+    /// The request was sent to the wrong broker, it does not currently own this partition
+    IncorrectNode,
+
+    /// The response from the broker could not be deserialized
     DeserializeError(DeserializeError),
+
+    /// There was an error receiving the response from the broker. Most likely the broker
+    /// was shutting down and closed the connection
     RecvError(RecvError),
+
+    /// Some other error was reported by the broker. See the error code for the specific type
+    /// of error that occurred
+    Error(String, ErrorCode),
 }
 
 pub type ClientResult<T> = Result<T, ClientError>;
@@ -103,7 +156,7 @@ impl Client {
                             RequestOutcome::NoData(msg) => {
                                 panic!("Client: No data negotiating API version: {}", msg)
                             }
-                            RequestOutcome::Error(msg) => {
+                            RequestOutcome::Error(msg, _code) => {
                                 panic!("Client: Error negotiating API version: {}", msg)
                             }
                         }
@@ -131,6 +184,7 @@ impl Client {
         self.connection.is_some()
     }
 
+    /// Synchronously publishes a message, blocking until a response is received from the broker
     pub fn publish(
         self: &Self,
         topic_id: TopicId,
@@ -141,20 +195,168 @@ impl Client {
         let request_id = self.get_next_request_id();
         let key: String = key.unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        match self.send_publish(request_id, topic_id, key, timestamp, attributes) {
+        match self.send_publish(request_id, topic_id, &key, timestamp, attributes) {
             Ok(_) => match self.recv() {
                 Ok(message) => match self.serializer.deserialize_response(message) {
                     Ok(response) => {
                         #[cfg(debug_assertions)]
                         debug!("Client: Received {:?}", &response);
+
                         if let ResponsePayload::V1Publish(publish_response) = response.payload {
                             if let RequestOutcome::Warning(ref msg) = publish_response.outcome {
-                                warn!("Client: Warning publishing message {}", msg);
+                                warn!("Client: Warning from broker publishing message {}", msg);
                             }
                             if let Some(data) = publish_response.data {
                                 Ok(PublishResult::from(&data))
                             } else {
-                                Err(ClientError::BadOutcome(publish_response.outcome))
+                                if let RequestOutcome::Error(msg, error_code) = publish_response.outcome {    
+                                    if error_code == ERROR_CODE_INCORRECT_NODE {
+                                        Err(ClientError::IncorrectNode)
+                                    } else {
+                                        Err(ClientError::Error(msg, error_code))
+                                    }
+                                } else {                          
+                                    Err(ClientError::BadOutcome(publish_response.outcome))
+                                }
+                            }
+                        } else {
+                            Err(ClientError::IncorrectResponseType)
+                        }
+                    }
+                    Err(err) => Err(ClientError::DeserializeError(err)),
+                },
+                Err(err) => Err(ClientError::RecvError(err)),
+            },
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Synchronously consumes messages, blocking until a response is received from the broker
+    pub fn consume(
+        self: &Self,
+        topic_id: TopicId,
+        subscription_id: SubscriptionId,
+        consumer_id: Option<ConsumerId>,
+        max_messages: MessageCount,
+    ) -> ClientResult<ConsumeResult> {
+        let request_id = self.get_next_request_id();
+        match self.send_consume(
+            request_id,
+            topic_id,
+            subscription_id,
+            consumer_id,
+            max_messages,
+        ) {
+            Ok(_) => match self.recv() {
+                Ok(message) => match self.serializer.deserialize_response(message) {
+                    Ok(response) => {
+                        #[cfg(debug_assertions)]
+                        debug!("Client: Received {:?}", &response);
+
+                        if let ResponsePayload::V1Consume(consume_response) = response.payload {
+                            if let RequestOutcome::Warning(ref msg) = consume_response.outcome {
+                                warn!("Client: Warning from broker consuming subscription {}", msg);
+                            }
+                            if let Some(data) = consume_response.data {
+                                Ok(ConsumeResult::from(&data))
+                            } else {
+                                if let RequestOutcome::Error(msg, error_code) = consume_response.outcome {    
+                                    Err(ClientError::Error(msg, error_code))
+                                } else {                          
+                                    Err(ClientError::BadOutcome(consume_response.outcome))
+                                }
+                            }
+                        } else {
+                            Err(ClientError::IncorrectResponseType)
+                        }
+                    }
+                    Err(err) => Err(ClientError::DeserializeError(err)),
+                },
+                Err(err) => Err(ClientError::RecvError(err)),
+            },
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Synchronously acknowledges a message, blocking until a response is received from the broker
+    /// This will cause the message to be deleted from the subscription
+    pub fn ack(
+        self: &Self,
+        message_ref_key: &str,
+        subscription_id: SubscriptionId,
+        consumer_id: ConsumerId,
+    ) -> ClientResult<AckResult> {
+        let request_id = self.get_next_request_id();
+        match self.send_ack(
+            request_id,
+            message_ref_key,
+            subscription_id,
+            consumer_id,
+        ) {
+            Ok(_) => match self.recv() {
+                Ok(message) => match self.serializer.deserialize_response(message) {
+                    Ok(response) => {
+                        #[cfg(debug_assertions)]
+                        debug!("Client: Received {:?}", &response);
+
+                        if let ResponsePayload::V1Ack(ack_response) = response.payload {
+                            if let RequestOutcome::Warning(ref msg) = ack_response.outcome {
+                                warn!("Client: Warning from broker acknowledging message {}", msg);
+                            }
+                            if let Some(data) = ack_response.data {
+                                Ok(AckResult::from(&data))
+                            } else {
+                                if let RequestOutcome::Error(msg, error_code) = ack_response.outcome {    
+                                    Err(ClientError::Error(msg, error_code))
+                                } else {                          
+                                    Err(ClientError::BadOutcome(ack_response.outcome))
+                                }
+                            }
+                        } else {
+                            Err(ClientError::IncorrectResponseType)
+                        }
+                    }
+                    Err(err) => Err(ClientError::DeserializeError(err)),
+                },
+                Err(err) => Err(ClientError::RecvError(err)),
+            },
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Synchronously negatively acknowledges a message, blocking until a response is received from the broker
+    /// This will cause the message to be re-delivered
+    pub fn nack(
+        self: &Self,
+        message_ref_key: &str,
+        subscription_id: SubscriptionId,
+        consumer_id: ConsumerId,
+    ) -> ClientResult<NackResult> {
+        let request_id = self.get_next_request_id();
+        match self.send_nack(
+            request_id,
+            message_ref_key,
+            subscription_id,
+            consumer_id,
+        ) {
+            Ok(_) => match self.recv() {
+                Ok(message) => match self.serializer.deserialize_response(message) {
+                    Ok(response) => {
+                        #[cfg(debug_assertions)]
+                        debug!("Client: Received {:?}", &response);
+
+                        if let ResponsePayload::V1Nack(nack_response) = response.payload {
+                            if let RequestOutcome::Warning(ref msg) = nack_response.outcome {
+                                warn!("Client: Warning from broker nacking message {}", msg);
+                            }
+                            if let Some(data) = nack_response.data {
+                                Ok(NackResult::from(&data))
+                            } else {
+                                if let RequestOutcome::Error(msg, error_code) = nack_response.outcome {    
+                                    Err(ClientError::Error(msg, error_code))
+                                } else {                          
+                                    Err(ClientError::BadOutcome(nack_response.outcome))
+                                }
                             }
                         } else {
                             Err(ClientError::IncorrectResponseType)
@@ -169,9 +371,9 @@ impl Client {
     }
 
     fn get_next_request_id(self: &Self) -> RequestId {
-        let mut next_request_id_lock = self.next_request_id.lock().unwrap();
-        let request_id = *next_request_id_lock;
-        *next_request_id_lock += 1;
+        let mut next_request_id = self.next_request_id.lock().unwrap();
+        let request_id = *next_request_id;
+        *next_request_id = if request_id == RequestId::MAX { 0 } else { request_id + 1 };
         request_id
     }
 
@@ -179,7 +381,7 @@ impl Client {
         self: &Self,
         request_id: RequestId,
         topic_id: TopicId,
-        key: String,
+        key: &str,
         timestamp: Option<Timestamp>,
         attributes: HashMap<String, String>,
     ) -> ClientResult<()> {
@@ -197,9 +399,128 @@ impl Client {
                 payload: RequestPayload::V1Publish(v1::requests::Publish {
                     topic_id,
                     partition_id: self.get_partition_id(topic_id, &key),
-                    key,
+                    key: key.to_owned(),
                     timestamp,
                     attributes,
+                }),
+            },
+            _ => return Err(ClientError::VersionNotSupported),
+        };
+
+        #[cfg(debug_assertions)]
+        debug!("Client: Sending {:?}", request);
+
+        let message = self.serializer.serialize_request(&request).unwrap();
+
+        if let Err(err) = self.send(message) {
+            Err(ClientError::SendError(err))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn send_consume(
+        self: &Self,
+        request_id: RequestId,
+        topic_id: TopicId,
+        subscription_id: SubscriptionId,
+        consumer_id: Option<ConsumerId>,
+        max_messages: MessageCount,
+    ) -> ClientResult<()> {
+        if self.connection.is_none() {
+            return Err(ClientError::NotConnected);
+        }
+        if self.version.is_none() {
+            return Err(ClientError::IncompatibleVersion);
+        }
+        let version = self.version.unwrap();
+
+        let request = match version {
+            1 => Request {
+                request_id,
+                payload: RequestPayload::V1Consume(v1::requests::Consume {
+                    topic_id,
+                    subscription_id,
+                    consumer_id,
+                    max_messages,
+                }),
+            },
+            _ => return Err(ClientError::VersionNotSupported),
+        };
+
+        #[cfg(debug_assertions)]
+        debug!("Client: Sending {:?}", request);
+
+        let message = self.serializer.serialize_request(&request).unwrap();
+
+        if let Err(err) = self.send(message) {
+            Err(ClientError::SendError(err))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn send_ack(
+        self: &Self,
+        request_id: RequestId,
+        message_ref_key: &str,
+        subscription_id: SubscriptionId,
+        consumer_id: ConsumerId,
+    ) -> ClientResult<()> {
+        if self.connection.is_none() {
+            return Err(ClientError::NotConnected);
+        }
+        if self.version.is_none() {
+            return Err(ClientError::IncompatibleVersion);
+        }
+        let version = self.version.unwrap();
+
+        let request = match version {
+            1 => Request {
+                request_id,
+                payload: RequestPayload::V1Ack(v1::requests::Ack {
+                    message_ref_key: message_ref_key.to_owned(),
+                    subscription_id,
+                    consumer_id,
+                }),
+            },
+            _ => return Err(ClientError::VersionNotSupported),
+        };
+
+        #[cfg(debug_assertions)]
+        debug!("Client: Sending {:?}", request);
+
+        let message = self.serializer.serialize_request(&request).unwrap();
+
+        if let Err(err) = self.send(message) {
+            Err(ClientError::SendError(err))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn send_nack(
+        self: &Self,
+        request_id: RequestId,
+        message_ref_key: &str,
+        subscription_id: SubscriptionId,
+        consumer_id: ConsumerId,
+    ) -> ClientResult<()> {
+        if self.connection.is_none() {
+            return Err(ClientError::NotConnected);
+        }
+        if self.version.is_none() {
+            return Err(ClientError::IncompatibleVersion);
+        }
+        let version = self.version.unwrap();
+
+        let request = match version {
+            1 => Request {
+                request_id,
+                payload: RequestPayload::V1Nack(v1::requests::Nack {
+                    message_ref_key: message_ref_key.to_owned(),
+                    subscription_id,
+                    consumer_id,
                 }),
             },
             _ => return Err(ClientError::VersionNotSupported),

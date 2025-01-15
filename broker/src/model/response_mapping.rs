@@ -11,13 +11,17 @@ use super::{
     partition::{PartitionList, PartitionRef},
     topic::{TopicList, TopicRef},
 };
-use crate::persistence::{
-    log_entries::{LogEntry, LoggedEvent},
-    logged_events::{
-        AckEvent, DropConsumerEvent, KeyAffinityEvent, NackEvent, NewConsumerEvent, PublishEvent,
+use crate::{
+    persistence::{
+        log_entries::{LogEntry, LoggedEvent},
+        logged_events::{
+            AckEvent, DropConsumerEvent, KeyAffinityEvent, NackEvent, NewConsumerEvent,
+            PublishEvent,
+        },
     },
+    services::sub_service::{ConsumedMessages, NextMessage},
 };
-use pulsar_rust_net::contracts::v1::responses;
+use pulsar_rust_net::{contracts::v1::responses, data_types::ConsumerId};
 
 impl From<&NodeRef> for responses::NodeSummary {
     fn from(node: &NodeRef) -> Self {
@@ -286,6 +290,29 @@ impl From<&KeyAffinityEvent> for responses::KeyAffinityLogEntry {
             subscription_id: entry.subscription_id,
             consumer_id: entry.consumer_id,
             message_key: entry.message_key.clone(),
+        }
+    }
+}
+
+impl From<&ConsumedMessages> for responses::ConsumeResult {
+    fn from(consumed_messages: &ConsumedMessages) -> Self {
+        responses::ConsumeResult {
+            consumer_id: consumed_messages.consumer_id,
+            messages: consumed_messages
+                .messages
+                .iter()
+                .map(|message| responses::Message {
+                    message_ref: responses::MessageRef::from(
+                        &message.published_message.message_ref,
+                    ),
+                    message_key: message.published_message.key.clone(),
+                    message_ack_key: message.published_message.message_ref.to_key(),
+                    published: message.published_message.published,
+                    attributes: message.published_message.attributes.clone(),
+                    delivered: message.subscribed_message.delivered_timestamp.unwrap(),
+                    delivery_count: message.subscribed_message.delivery_count,
+                })
+                .collect(),
         }
     }
 }

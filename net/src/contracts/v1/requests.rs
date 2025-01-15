@@ -3,7 +3,8 @@ Version 1 data contracts for serializing request body
 */
 
 use crate::data_types::{
-    ConsumerId, ContractVersionNumber, PartitionId, SubscriptionId, Timestamp, TopicId,
+    ConsumerId, ContractVersionNumber, MessageCount, PartitionId, SubscriptionId, Timestamp,
+    TopicId,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -20,16 +21,17 @@ pub struct Publish {
 
 #[derive(Serialize, Deserialize)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct Consumer {
+pub struct Consume {
     pub topic_id: TopicId,
     pub subscription_id: SubscriptionId,
-    pub max_requests_per_sec: u32,
+    pub consumer_id: Option<ConsumerId>,
+    pub max_messages: MessageCount,
 }
 
 #[derive(Serialize, Deserialize)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Ack {
-    pub message_ack_key: String,
+    pub message_ref_key: String,
     pub subscription_id: SubscriptionId,
     pub consumer_id: ConsumerId,
 }
@@ -37,7 +39,7 @@ pub struct Ack {
 #[derive(Serialize, Deserialize)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Nack {
-    pub message_ack_key: String,
+    pub message_ref_key: String,
     pub subscription_id: SubscriptionId,
     pub consumer_id: ConsumerId,
 }

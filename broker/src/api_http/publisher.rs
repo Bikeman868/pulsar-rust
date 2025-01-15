@@ -1,9 +1,9 @@
 use super::with_app;
 use crate::{observability::Metrics, services::pub_service::PubError, App};
-use pulsar_rust_net::contracts::v1::{
+use pulsar_rust_net::{contracts::v1::{
     requests,
     responses::{self, Response},
-};
+}, error_codes::{ERROR_CODE_BACKLOG_FULL, ERROR_CODE_GENERAL_FAILURE, ERROR_CODE_INCORRECT_NODE}};
 use std::sync::Arc;
 use warp::{body, get, path, post, reply, Filter, Rejection, Reply};
 
@@ -39,19 +39,18 @@ async fn publish_message(
             message_ref: message_ref.into(),
         }),
         Err(err) => {
-            let error = match err {
-                PubError::Error(msg) => &msg.clone(),
-                PubError::TopicNotFound => "No topic with this ID",
-                PubError::PartitionNotFound => "No partition with this ID",
-                PubError::NodeNotFound => "No node with this ID",
-                PubError::WrongNode(node) => &format!(
+            match err {
+                PubError::Error(msg) => responses::Response::error(&msg.clone(), ERROR_CODE_GENERAL_FAILURE),
+                PubError::TopicNotFound => responses::Response::warning("No topic with this ID"),
+                PubError::PartitionNotFound => responses::Response::warning("No partition with this ID"),
+                PubError::NodeNotFound => responses::Response::warning("No node with this ID"),
+                PubError::WrongNode(node) => responses::Response::error(&format!(
                     "Wrong node for this partition. Publish to {} instead",
                     node.ip_address()
-                ),
-                PubError::BacklogCapacityExceeded => "The backlog storage is full",
-                PubError::NoSubscribers => "There are no active subscribers to this topic",
-            };
-            responses::Response::error(error)
+                ), ERROR_CODE_INCORRECT_NODE),
+                PubError::BacklogCapacityExceeded => responses::Response::error("The backlog storage is full", ERROR_CODE_BACKLOG_FULL),
+                PubError::NoSubscribers => responses::Response::warning("There are no active subscribers to this topic"),
+            }
         }
     };
     Ok(reply::json(&response))

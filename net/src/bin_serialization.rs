@@ -33,7 +33,7 @@ pub enum DeserializeError {
 pub enum RequestPayload {
     NegotiateVersion(v1::requests::NegotiateVersion),
     V1Publish(v1::requests::Publish),
-    V1Consumer(v1::requests::Consumer),
+    V1Consume(v1::requests::Consume),
     V1Ack(v1::requests::Ack),
     V1Nack(v1::requests::Nack),
 }
@@ -49,7 +49,7 @@ pub struct Request {
 pub enum ResponsePayload {
     NegotiateVersion(v1::responses::Response<v1::responses::NegotiateVersionResult>),
     V1Publish(v1::responses::Response<v1::responses::PublishResult>),
-    V1Consumer(v1::responses::Response<v1::responses::AllocateConsumerResult>),
+    V1Consume(v1::responses::Response<v1::responses::ConsumeResult>),
     V1Ack(v1::responses::Response<v1::responses::AckResult>),
     V1Nack(v1::responses::Response<v1::responses::NackResult>),
 }
@@ -110,7 +110,7 @@ impl ContractSerializer {
             RequestPayload::V1Publish(publish) => {
                 self.serialize_entity(publish, V1_PUBLISH_MESSAGE_TYPE_ID, request.request_id)
             }
-            RequestPayload::V1Consumer(consumer) => {
+            RequestPayload::V1Consume(consumer) => {
                 self.serialize_entity(consumer, V1_CONSUMER_MESSAGE_TYPE_ID, request.request_id)
             }
             RequestPayload::V1Ack(ack) => {
@@ -132,7 +132,7 @@ impl ContractSerializer {
             ResponsePayload::V1Publish(publish) => {
                 self.serialize_entity(publish, V1_PUBLISH_MESSAGE_TYPE_ID, response.request_id)
             }
-            ResponsePayload::V1Consumer(consumer) => {
+            ResponsePayload::V1Consume(consumer) => {
                 self.serialize_entity(consumer, V1_CONSUMER_MESSAGE_TYPE_ID, response.request_id)
             }
             ResponsePayload::V1Ack(ack) => {
@@ -167,10 +167,10 @@ impl ContractSerializer {
                 }
             }
             V1_CONSUMER_MESSAGE_TYPE_ID => {
-                match self.deserialize_entity::<v1::requests::Consumer>(buffer) {
+                match self.deserialize_entity::<v1::requests::Consume>(buffer) {
                     Ok(consumer) => Ok(Request {
                         request_id,
-                        payload: RequestPayload::V1Consumer(consumer),
+                        payload: RequestPayload::V1Consume(consumer),
                     }),
                     Err(err) => Err(err),
                 }
@@ -210,8 +210,8 @@ impl ContractSerializer {
                     Err(err) => Err(err),
                 }
             V1_CONSUMER_MESSAGE_TYPE_ID =>
-                match self.deserialize_entity::<v1::responses::Response<v1::responses::AllocateConsumerResult>>(buffer) {
-                    Ok(response) => Ok(Response{ request_id, payload: ResponsePayload::V1Consumer(response) }),
+                match self.deserialize_entity::<v1::responses::Response<v1::responses::ConsumeResult>>(buffer) {
+                    Ok(response) => Ok(Response{ request_id, payload: ResponsePayload::V1Consume(response) }),
                     Err(err) => Err(err),
                 }
             V1_ACK_MESSAGE_TYPE_ID =>

@@ -20,7 +20,7 @@ impl Metrics {
     pub const METRIC_HTTP_PUB_PING_COUNT: &str = "http.request.pub.ping.count";
 
     pub const METRIC_HTTP_SUB_MESSAGE_COUNT: &str = "http.request.sub.message.count";
-    pub const METRIC_HTTP_SUB_CONSUMER_COUNT: &str = "http.request.sub.consumer.count";
+    pub const METRIC_HTTP_SUB_CONSUME_COUNT: &str = "http.request.sub.consume.count";
     pub const METRIC_HTTP_SUB_NODES_COUNT: &str = "http.request.sub.nodes.count";
     pub const METRIC_HTTP_SUB_TOPICS_COUNT: &str = "http.request.sub.topics.count";
     pub const METRIC_HTTP_SUB_ACK_COUNT: &str = "http.request.sub.ack.count";

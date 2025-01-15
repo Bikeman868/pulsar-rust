@@ -14,9 +14,7 @@ use super::server::ServerMessage;
 use crate::App;
 use log::{error, info, warn};
 use pulsar_rust_net::{
-    bin_serialization::{ContractSerializer, RequestPayload, Response, ResponsePayload},
-    contracts::v1::{self, responses::MessageRef},
-    sockets::buffer_pool::BufferPool,
+    bin_serialization::{ContractSerializer, RequestPayload, Response, ResponsePayload}, contracts::v1::{self, responses::MessageRef}, error_codes::{ERROR_CODE_BACKLOG_FULL, ERROR_CODE_GENERAL_FAILURE, ERROR_CODE_INCORRECT_NODE, ERROR_CODE_NO_COMPATIBLE_VERSION}, sockets::buffer_pool::BufferPool
 };
 
 #[cfg(debug_assertions)]
@@ -90,6 +88,7 @@ impl ProcessingThread {
                                     ResponsePayload::NegotiateVersion(
                                         v1::responses::Response::error(
                                             "Maximum supported API version is 1",
+                                            ERROR_CODE_NO_COMPATIBLE_VERSION,
                                         ),
                                     )
                                 }
@@ -106,25 +105,104 @@ impl ProcessingThread {
                                     }
                                     Err(err) => match err {
                                         crate::services::pub_service::PubError::Error(msg) =>
-                                            ResponsePayload::V1Publish(v1::responses::Response::error(&msg)),
+                                            ResponsePayload::V1Publish(v1::responses::Response::error(&msg, ERROR_CODE_GENERAL_FAILURE)),
                                         crate::services::pub_service::PubError::TopicNotFound =>
-                                            ResponsePayload::V1Publish(v1::responses::Response::error("Unknown topic ID")),
+                                            ResponsePayload::V1Publish(v1::responses::Response::warning("Unknown topic ID")),
                                         crate::services::pub_service::PubError::PartitionNotFound =>
-                                            ResponsePayload::V1Publish(v1::responses::Response::error("Unknown partition ID")),
+                                            ResponsePayload::V1Publish(v1::responses::Response::warning("Unknown partition ID")),
                                         crate::services::pub_service::PubError::NodeNotFound =>
-                                            ResponsePayload::V1Publish(v1::responses::Response::error("Unknown node for this partition")),
+                                            ResponsePayload::V1Publish(v1::responses::Response::warning("Unknown node for this partition")),
                                         crate::services::pub_service::PubError::WrongNode(entity_ref) =>
-                                            ResponsePayload::V1Publish(v1::responses::Response::error(&format!("This node is not the owner of the partition, publish to {} instead", entity_ref.ip_address()))),
+                                            ResponsePayload::V1Publish(v1::responses::Response::error(&format!("This node is not the owner of the partition, publish to {} instead", entity_ref.ip_address()), ERROR_CODE_INCORRECT_NODE)),
                                         crate::services::pub_service::PubError::BacklogCapacityExceeded =>
-                                            ResponsePayload::V1Publish(v1::responses::Response::error("Backlog capacity exceeded")),
+                                            ResponsePayload::V1Publish(v1::responses::Response::error("Backlog capacity exceeded", ERROR_CODE_BACKLOG_FULL)),
                                         crate::services::pub_service::PubError::NoSubscribers =>
-                                            ResponsePayload::V1Publish(v1::responses::Response::error("No subscribers to this topic")),
+                                            ResponsePayload::V1Publish(v1::responses::Response::warning("No subscribers to this topic")),
                                     }
                                 }
                             }
-                            RequestPayload::V1Consumer(_consumer) => todo!(),
-                            RequestPayload::V1Ack(_ack) => todo!(),
-                            RequestPayload::V1Nack(_nack) => todo!(),
+                            RequestPayload::V1Consume(v1_consume) => {
+                                let topic_id = v1_consume.topic_id;
+                                let subscription_id = v1_consume.subscription_id;
+                                let consumer_id = v1_consume.consumer_id;
+                                let max_messages = v1_consume.max_messages;
+                                match self.app.sub_service.consume_max_messages(
+                                    topic_id,
+                                    subscription_id,
+                                    consumer_id,
+                                    max_messages,
+                                ) {
+                                    Ok(messages) => ResponsePayload::V1Consume(
+                                        v1::responses::Response::success(
+                                            v1::responses::ConsumeResult::from(&messages),
+                                        ),
+                                    ),
+                                    Err(_) => {
+                                        ResponsePayload::V1Consume(v1::responses::Response::error(
+                                            "Failed to allocate consumer id",
+                                            ERROR_CODE_GENERAL_FAILURE,
+                                        ))
+                                    }
+                                }
+                            }
+                            RequestPayload::V1Ack(v1_ack) => {
+                                let message_ack_key = v1_ack.message_ref_key;
+                                let subscription_id = v1_ack.subscription_id;
+                                let consumer_id = v1_ack.consumer_id;
+                                match self.app.sub_service.ack(
+                                    message_ack_key,
+                                    subscription_id,
+                                    consumer_id,
+                                ) {
+                                    Ok(success) => ResponsePayload::V1Ack(
+                                        if success {
+                                            v1::responses::Response::success(
+                                                v1::responses::AckResult { success: true },
+                                            )
+                                        } else {
+                                            v1::responses::Response::warning(
+                                                "Message was already acknowledged",
+                                            )
+                                        },
+                                    ),
+                                    Err(_) => {
+                                        ResponsePayload::V1Ack(v1::responses::Response::error(
+                                            "Failed to ack message",
+                                            ERROR_CODE_GENERAL_FAILURE,
+                                        ))
+                                    }
+                                }
+                            }
+                            RequestPayload::V1Nack(v1_nack) => {
+                                let message_ref_key = v1_nack.message_ref_key;
+                                let subscription_id = v1_nack.subscription_id;
+                                let consumer_id = v1_nack.consumer_id;
+                                match self.app.sub_service.nack(
+                                    message_ref_key,
+                                    subscription_id,
+                                    consumer_id,
+                                ) {
+                                    Ok(success) => ResponsePayload::V1Nack(
+                                        if success {
+                                            v1::responses::Response::success(
+                                                v1::responses::NackResult {
+                                                    success: true,
+                                                },
+                                            )
+                                        } else {
+                                            v1::responses::Response::warning(
+                                                "Message was already acknowledged",
+                                            )
+                                        },
+                                    ),
+                                    Err(_) => {
+                                        ResponsePayload::V1Nack(v1::responses::Response::error(
+                                            "Failed to nack message",
+                                            ERROR_CODE_GENERAL_FAILURE,
+                                        ))
+                                    }
+                                }
+                            }
                         };
                         let serialization_response = Response::new(request_id, response_payload);
                         let response_message = ServerMessage {

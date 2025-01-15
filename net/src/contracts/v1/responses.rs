@@ -7,8 +7,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::data_types::{
-    ConsumerId, ContractVersionNumber, LedgerId, MessageId, NodeId, PartitionId, PortNumber,
-    SubscriptionId, Timestamp, TopicId,
+    ConsumerId, ContractVersionNumber, ErrorCode, LedgerId, MessageId, NodeId, PartitionId, PortNumber, SubscriptionId, Timestamp, TopicId
 };
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -140,17 +139,22 @@ pub struct PublishResult {
 
 #[derive(Deserialize, Serialize, Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct AllocateConsumerResult {
+pub struct ConsumeResult {
     pub consumer_id: ConsumerId,
+    pub messages: Vec<Message>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct AckResult {}
+pub struct AckResult {
+    pub success: bool,
+}
 
 #[derive(Deserialize, Serialize, Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct NackResult {}
+pub struct NackResult {
+    pub success: bool,
+}
 
 #[derive(Deserialize, Serialize, Clone, Default)]
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -254,7 +258,7 @@ pub enum RequestOutcome {
     Success,
     NoData(String),
     Warning(String),
-    Error(String),
+    Error(String, ErrorCode),
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -283,9 +287,9 @@ impl<T> Response<T> {
             data: None,
         }
     }
-    pub fn error(msg: &str) -> Self {
+    pub fn error(msg: &str, code: ErrorCode) -> Self {
         Self {
-            outcome: RequestOutcome::Error(msg.to_owned()),
+            outcome: RequestOutcome::Error(msg.to_owned(), code),
             data: None,
         }
     }

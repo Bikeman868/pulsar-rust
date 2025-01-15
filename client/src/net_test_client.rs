@@ -1,5 +1,8 @@
 use pulsar_rust_client::api_bin::client::Client;
-use pulsar_rust_net::{data_types::TopicId, sockets::buffer_pool::BufferPool};
+use pulsar_rust_net::{
+    data_types::{SubscriptionId, TopicId},
+    sockets::buffer_pool::BufferPool,
+};
 use std::{
     collections::HashMap,
     sync::{Arc, Barrier, RwLock},
@@ -45,7 +48,29 @@ pub fn run_test() {
             let topic_id: TopicId = 1;
             let mut attributes = HashMap::new();
             attributes.insert(String::from("order_number"), String::from("ABC123"));
-            client.publish(topic_id, None, None, attributes).unwrap();
+            let publish_result = client.publish(topic_id, None, None, attributes).unwrap();
+
+            #[cfg(debug_assertions)]
+            println!("Published {:?}", publish_result.message_ref);
+
+            // Consume a message
+            let subscription_id: SubscriptionId = 1;
+            let consume_result = client.consume(topic_id, subscription_id, None, 1).unwrap();
+
+            #[cfg(debug_assertions)]
+            println!("Allocated consumer id: {}", consume_result.consumer_id);
+
+            // Ack the message
+            for message in consume_result.messages {
+                #[cfg(debug_assertions)]
+                println!("{:?}", message);
+
+                let _ = client.ack(
+                    &message.message_ref_key,
+                    subscription_id,
+                    consume_result.consumer_id,
+                );
+            }
 
             // for _ in 0..repeat_count {
             //     request_id += 1;
