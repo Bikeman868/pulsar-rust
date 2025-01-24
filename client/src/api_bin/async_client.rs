@@ -1,99 +1,44 @@
+use super::{
+    connection::Connection,
+    contracts::{AckResult, ClientMessage, ClientResult, ConsumeResult, NackResult, PublishResult},
+    future_response::{FutureResponse, FutureResponseState},
+};
+use crate::api_bin::{
+    async_receiver_thread::AsyncReceiverThread, contracts::ClientError,
+    future_response::FutureHashMap,
+};
+use log::{debug, info};
+use pulsar_rust_net::{
+    bin_serialization::{
+        ContractSerializer, DeserializeError, Request, RequestId, RequestPayload, ResponsePayload,
+    },
+    contracts::v1::{self, requests::NegotiateVersion, responses::RequestOutcome},
+    data_types::{
+        ConsumerId, ContractVersionNumber, MessageCount, PartitionId, SubscriptionId, Timestamp,
+        TopicId,
+    },
+    sockets::buffer_pool::BufferPool,
+};
 use std::{
     collections::HashMap,
     sync::{
-        mpsc::{RecvError, SendError, TryRecvError},
+        atomic::{AtomicBool, Ordering},
+        mpsc::{RecvError, SendError},
         Arc, Mutex,
     },
+    thread,
 };
 use uuid::Uuid;
-use log::{debug, info, warn};
-use pulsar_rust_net::{
-    bin_serialization::{
-        ContractSerializer,
-        DeserializeError,
-        Request,
-        RequestId,
-        RequestPayload,
-        ResponsePayload,
-    },
-    contracts::v1::{
-        self, 
-        requests::NegotiateVersion, 
-        responses::RequestOutcome,
-    }, 
-    data_types::{
-        ConsumerId,
-        ContractVersionNumber,
-        ErrorCode,
-        MessageCount,
-        PartitionId,
-        SubscriptionId,
-        Timestamp,
-        TopicId,
-    },
-    error_codes::ERROR_CODE_INCORRECT_NODE, 
-    sockets::buffer_pool::BufferPool
-};
-use super::{
-    connection::Connection, 
-    contracts::{
-        ConsumeResult,
-        PublishResult,
-        AckResult,
-        NackResult,
-    }
-};
-
-pub(crate) type ClientMessage = Vec<u8>;
-
-#[derive(Debug)]
-pub enum ClientError {
-    /// The client is not connected to a broker
-    NotConnected,
-
-    /// The connected broker does not support any API version supported by this client library
-    IncompatibleVersion,
-
-    /// The broker returned a message version that is not supported by this client
-    VersionNotSupported,
-
-    /// An error occurred sending the request to the broker
-    SendError(SendError<Vec<u8>>),
-
-    /// The broker retuened an unsuccesfull outcome for the request
-    BadOutcome(RequestOutcome),
-
-    /// The requested data does not exist on the broker
-    NoData,
-
-    /// The broker returned a response that was in response to another request. This mostly
-    /// happens if you mix sync and async calls on the same connection
-    IncorrectResponseType,
-
-    /// The request was sent to the wrong broker, it does not currently own this partition
-    IncorrectNode,
-
-    /// The response from the broker could not be deserialized
-    DeserializeError(DeserializeError),
-
-    /// There was an error receiving the response from the broker. Most likely the broker
-    /// was shutting down and closed the connection
-    RecvError(RecvError),
-
-    /// Some other error was reported by the broker. See the error code for the specific type
-    /// of error that occurred
-    Error(String, ErrorCode),
-}
-
-pub type ClientResult<T> = Result<T, ClientError>;
 
 pub struct Client {
     authority: String,
     buffer_pool: Arc<BufferPool>,
+    stop_signal: Arc<AtomicBool>,
     serializer: ContractSerializer,
     connection: Option<Connection>,
     version: Option<ContractVersionNumber>,
     next_request_id: Mutex<RequestId>,
+    futures: Arc<Mutex<FutureHashMap>>,
 }
 
 impl Client {
@@ -103,14 +48,16 @@ impl Client {
         Self {
             authority: String::from(authority),
             buffer_pool: buffer_pool.clone(),
+            stop_signal: Arc::new(AtomicBool::new(false)),
             connection: None,
             serializer: ContractSerializer::new(&buffer_pool),
             version: None,
             next_request_id: Mutex::new(1),
+            futures: Arc::new(Mutex::new(FutureHashMap::new())),
         }
     }
 
-    pub fn connect(self: &mut Self) {
+    pub fn connect(self: &mut Self) -> Result<(), String> {
         self.connection = Some(Connection::new(&self.buffer_pool, &self.authority));
 
         let payload = NegotiateVersion {
@@ -144,6 +91,21 @@ impl Client {
                                     debug!("Client: Negotiated API version {}", data.version);
                                     self.version = Some(data.version);
                                 }
+                                if let Some(connection) = &mut self.connection {
+                                    if let Some(receiver) = connection.take_receiver() {
+                                        let thread = AsyncReceiverThread::new(
+                                            &self.buffer_pool,
+                                            &self.stop_signal,
+                                            &self.futures,
+                                            receiver,
+                                        );
+                                        thread::Builder::new()
+                                            .name(String::from("async-rx"))
+                                            .spawn(|| thread.run())
+                                            .unwrap();
+                                    }
+                                }
+                                Ok(())
                             }
                             RequestOutcome::Warning(msg) => {
                                 if let Some(data) = version_response.data {
@@ -151,30 +113,33 @@ impl Client {
                                     debug!("Client: Negotiated API version: {}", data.version);
                                     self.version = Some(data.version);
                                 }
-                                warn!("Client: Warning negotiating API version {}", msg)
+                                Err(format!("Client: Warning negotiating API version {}", msg))
                             }
                             RequestOutcome::NoData(msg) => {
-                                panic!("Client: No data negotiating API version: {}", msg)
+                                Err(format!("Client: No data negotiating API version: {}", msg))
                             }
                             RequestOutcome::Error(msg, _code) => {
-                                panic!("Client: Error negotiating API version: {}", msg)
+                                Err(format!("Client: Error negotiating API version: {}", msg))
                             }
                         }
                     } else {
-                        panic!("Client: Received wrong response type for negotiate version request")
+                        Err(format!(
+                            "Client: Received wrong response type for negotiate version request"
+                        ))
                     }
                 }
                 Err(err) => match err {
-                    DeserializeError::Error { msg } => panic!("Client: {}", msg),
+                    DeserializeError::Error { msg } => Err(format!("Client: {}", msg)),
                 },
             },
-            Err(err) => {
-                panic!("Client: Error receiving API version negotiation response: {err}");
-            }
+            Err(err) => Err(format!(
+                "Client: Error receiving API version negotiation response: {err}"
+            )),
         }
     }
 
     pub fn disconnect(self: &mut Self) {
+        self.stop_signal.store(true, Ordering::Relaxed);
         if let Some(connection) = self.connection.take() {
             connection.disconnect();
         }
@@ -184,61 +149,41 @@ impl Client {
         self.connection.is_some()
     }
 
-    /// Synchronously publishes a message, blocking until a response is received from the broker
+    /// Asynchronously publishes a message, returning a future that will complete when a response is received from the broker
     pub fn publish(
         self: &Self,
         topic_id: TopicId,
         key: Option<String>,
         timestamp: Option<Timestamp>,
         attributes: HashMap<String, String>,
-    ) -> ClientResult<PublishResult> {
+    ) -> ClientResult<FutureResponse<PublishResult>> {
         let request_id = self.get_next_request_id();
         let key: String = key.unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        match self.send_publish(request_id, topic_id, &key, timestamp, attributes) {
-            Ok(_) => match self.recv() {
-                Ok(message) => match self.serializer.deserialize_response(message) {
-                    Ok(response) => {
-                        #[cfg(debug_assertions)]
-                        debug!("Client: Received {:?}", &response);
+        #[cfg(debug_assertions)]
+        debug!("Client: Request {} publish with key {}", request_id, key);
 
-                        if let ResponsePayload::V1Publish(publish_response) = response.payload {
-                            if let RequestOutcome::Warning(ref msg) = publish_response.outcome {
-                                warn!("Client: Warning from broker publishing message {}", msg);
-                            }
-                            if let Some(data) = publish_response.data {
-                                Ok(PublishResult::from(&data))
-                            } else {
-                                if let RequestOutcome::Error(msg, error_code) = publish_response.outcome {    
-                                    if error_code == ERROR_CODE_INCORRECT_NODE {
-                                        Err(ClientError::IncorrectNode)
-                                    } else {
-                                        Err(ClientError::Error(msg, error_code))
-                                    }
-                                } else {                          
-                                    Err(ClientError::BadOutcome(publish_response.outcome))
-                                }
-                            }
-                        } else {
-                            Err(ClientError::IncorrectResponseType)
-                        }
-                    }
-                    Err(err) => Err(ClientError::DeserializeError(err)),
-                },
-                Err(err) => Err(ClientError::RecvError(err)),
-            },
+        match self.send_publish(request_id, topic_id, &key, timestamp, attributes) {
+            Ok(_) => {
+                let state = Arc::new(Mutex::new(FutureResponseState::new()));
+                let future = FutureResponse::new(&state);
+                let mut futures = self.futures.lock().unwrap();
+                futures.publish_futures.insert(request_id, state);
+                Ok(future)
+            }
             Err(err) => Err(err),
         }
     }
 
-    /// Synchronously consumes messages, blocking until a response is received from the broker
+    /// Asynchronously consumes messages, returning a future that will complete
+    /// when a response is received from the broker
     pub fn consume(
         self: &Self,
         topic_id: TopicId,
         subscription_id: SubscriptionId,
-        consumer_id: Option<ConsumerId>,
+        consumer_id: &Option<ConsumerId>,
         max_messages: MessageCount,
-    ) -> ClientResult<ConsumeResult> {
+    ) -> ClientResult<FutureResponse<ConsumeResult>> {
         let request_id = self.get_next_request_id();
         match self.send_consume(
             request_id,
@@ -247,79 +192,34 @@ impl Client {
             consumer_id,
             max_messages,
         ) {
-            Ok(_) => match self.recv() {
-                Ok(message) => match self.serializer.deserialize_response(message) {
-                    Ok(response) => {
-                        #[cfg(debug_assertions)]
-                        debug!("Client: Received {:?}", &response);
-
-                        if let ResponsePayload::V1Consume(consume_response) = response.payload {
-                            if let RequestOutcome::Warning(ref msg) = consume_response.outcome {
-                                warn!("Client: Warning from broker consuming subscription {}", msg);
-                            }
-                            if let Some(data) = consume_response.data {
-                                Ok(ConsumeResult::from(&data))
-                            } else {
-                                if let RequestOutcome::Error(msg, error_code) = consume_response.outcome {    
-                                    Err(ClientError::Error(msg, error_code))
-                                } else {                          
-                                    Err(ClientError::BadOutcome(consume_response.outcome))
-                                }
-                            }
-                        } else {
-                            Err(ClientError::IncorrectResponseType)
-                        }
-                    }
-                    Err(err) => Err(ClientError::DeserializeError(err)),
-                },
-                Err(err) => Err(ClientError::RecvError(err)),
-            },
+            Ok(_) => {
+                let state = Arc::new(Mutex::new(FutureResponseState::new()));
+                let future = FutureResponse::new(&state);
+                let mut futures = self.futures.lock().unwrap();
+                futures.consume_futures.insert(request_id, state);
+                Ok(future)
+            }
             Err(err) => Err(err),
         }
     }
 
-    /// Synchronously acknowledges a message, blocking until a response is received from the broker
-    /// This will cause the message to be deleted from the subscription
+    /// Synchronously acknowledges a message, blocking until a response is received
+    /// from the broker. This will cause the message to be deleted from the subscription
     pub fn ack(
         self: &Self,
         message_ref_key: &str,
         subscription_id: SubscriptionId,
         consumer_id: ConsumerId,
-    ) -> ClientResult<AckResult> {
+    ) -> ClientResult<FutureResponse<AckResult>> {
         let request_id = self.get_next_request_id();
-        match self.send_ack(
-            request_id,
-            message_ref_key,
-            subscription_id,
-            consumer_id,
-        ) {
-            Ok(_) => match self.recv() {
-                Ok(message) => match self.serializer.deserialize_response(message) {
-                    Ok(response) => {
-                        #[cfg(debug_assertions)]
-                        debug!("Client: Received {:?}", &response);
-
-                        if let ResponsePayload::V1Ack(ack_response) = response.payload {
-                            if let RequestOutcome::Warning(ref msg) = ack_response.outcome {
-                                warn!("Client: Warning from broker acknowledging message {}", msg);
-                            }
-                            if let Some(data) = ack_response.data {
-                                Ok(AckResult::from(&data))
-                            } else {
-                                if let RequestOutcome::Error(msg, error_code) = ack_response.outcome {    
-                                    Err(ClientError::Error(msg, error_code))
-                                } else {                          
-                                    Err(ClientError::BadOutcome(ack_response.outcome))
-                                }
-                            }
-                        } else {
-                            Err(ClientError::IncorrectResponseType)
-                        }
-                    }
-                    Err(err) => Err(ClientError::DeserializeError(err)),
-                },
-                Err(err) => Err(ClientError::RecvError(err)),
-            },
+        match self.send_ack(request_id, message_ref_key, subscription_id, consumer_id) {
+            Ok(_) => {
+                let state = Arc::new(Mutex::new(FutureResponseState::new()));
+                let future = FutureResponse::new(&state);
+                let mut futures = self.futures.lock().unwrap();
+                futures.ack_futures.insert(request_id, state);
+                Ok(future)
+            }
             Err(err) => Err(err),
         }
     }
@@ -331,41 +231,16 @@ impl Client {
         message_ref_key: &str,
         subscription_id: SubscriptionId,
         consumer_id: ConsumerId,
-    ) -> ClientResult<NackResult> {
+    ) -> ClientResult<FutureResponse<NackResult>> {
         let request_id = self.get_next_request_id();
-        match self.send_nack(
-            request_id,
-            message_ref_key,
-            subscription_id,
-            consumer_id,
-        ) {
-            Ok(_) => match self.recv() {
-                Ok(message) => match self.serializer.deserialize_response(message) {
-                    Ok(response) => {
-                        #[cfg(debug_assertions)]
-                        debug!("Client: Received {:?}", &response);
-
-                        if let ResponsePayload::V1Nack(nack_response) = response.payload {
-                            if let RequestOutcome::Warning(ref msg) = nack_response.outcome {
-                                warn!("Client: Warning from broker nacking message {}", msg);
-                            }
-                            if let Some(data) = nack_response.data {
-                                Ok(NackResult::from(&data))
-                            } else {
-                                if let RequestOutcome::Error(msg, error_code) = nack_response.outcome {    
-                                    Err(ClientError::Error(msg, error_code))
-                                } else {                          
-                                    Err(ClientError::BadOutcome(nack_response.outcome))
-                                }
-                            }
-                        } else {
-                            Err(ClientError::IncorrectResponseType)
-                        }
-                    }
-                    Err(err) => Err(ClientError::DeserializeError(err)),
-                },
-                Err(err) => Err(ClientError::RecvError(err)),
-            },
+        match self.send_nack(request_id, message_ref_key, subscription_id, consumer_id) {
+            Ok(_) => {
+                let state = Arc::new(Mutex::new(FutureResponseState::new()));
+                let future = FutureResponse::new(&state);
+                let mut futures = self.futures.lock().unwrap();
+                futures.nack_futures.insert(request_id, state);
+                Ok(future)
+            }
             Err(err) => Err(err),
         }
     }
@@ -373,7 +248,11 @@ impl Client {
     fn get_next_request_id(self: &Self) -> RequestId {
         let mut next_request_id = self.next_request_id.lock().unwrap();
         let request_id = *next_request_id;
-        *next_request_id = if request_id == RequestId::MAX { 0 } else { request_id + 1 };
+        *next_request_id = if request_id == RequestId::MAX {
+            0
+        } else {
+            request_id + 1
+        };
         request_id
     }
 
@@ -424,7 +303,7 @@ impl Client {
         request_id: RequestId,
         topic_id: TopicId,
         subscription_id: SubscriptionId,
-        consumer_id: Option<ConsumerId>,
+        consumer_id: &Option<ConsumerId>,
         max_messages: MessageCount,
     ) -> ClientResult<()> {
         if self.connection.is_none() {
@@ -441,7 +320,7 @@ impl Client {
                 payload: RequestPayload::V1Consume(v1::requests::Consume {
                     topic_id,
                     subscription_id,
-                    consumer_id,
+                    consumer_id: consumer_id.clone(),
                     max_messages,
                 }),
             },
@@ -541,14 +420,6 @@ impl Client {
     fn get_partition_id(self: &Self, _topic_id: TopicId, _key: &str) -> PartitionId {
         // TODO: hash message key to partition id
         1
-    }
-
-    fn try_recv(self: &Self) -> Result<ClientMessage, TryRecvError> {
-        if let Some(connection) = &self.connection {
-            connection.try_recv()
-        } else {
-            Err(TryRecvError::Disconnected)
-        }
     }
 
     fn recv(self: &Self) -> Result<ClientMessage, RecvError> {

@@ -14,7 +14,13 @@ use super::server::ServerMessage;
 use crate::App;
 use log::{error, info, warn};
 use pulsar_rust_net::{
-    bin_serialization::{ContractSerializer, RequestPayload, Response, ResponsePayload}, contracts::v1::{self, responses::MessageRef}, error_codes::{ERROR_CODE_BACKLOG_FULL, ERROR_CODE_GENERAL_FAILURE, ERROR_CODE_INCORRECT_NODE, ERROR_CODE_NO_COMPATIBLE_VERSION}, sockets::buffer_pool::BufferPool
+    bin_serialization::{BrokerResponse, ContractSerializer, RequestPayload, ResponsePayload},
+    contracts::v1::{self, responses::MessageRef},
+    error_codes::{
+        ERROR_CODE_BACKLOG_FULL, ERROR_CODE_GENERAL_FAILURE, ERROR_CODE_INCORRECT_NODE,
+        ERROR_CODE_NO_COMPATIBLE_VERSION,
+    },
+    sockets::buffer_pool::BufferPool,
 };
 
 #[cfg(debug_assertions)]
@@ -154,17 +160,15 @@ impl ProcessingThread {
                                     subscription_id,
                                     consumer_id,
                                 ) {
-                                    Ok(success) => ResponsePayload::V1Ack(
-                                        if success {
-                                            v1::responses::Response::success(
-                                                v1::responses::AckResult { success: true },
-                                            )
-                                        } else {
-                                            v1::responses::Response::warning(
-                                                "Message was already acknowledged",
-                                            )
-                                        },
-                                    ),
+                                    Ok(success) => ResponsePayload::V1Ack(if success {
+                                        v1::responses::Response::success(v1::responses::AckResult {
+                                            success: true,
+                                        })
+                                    } else {
+                                        v1::responses::Response::warning(
+                                            "Message was already acknowledged",
+                                        )
+                                    }),
                                     Err(_) => {
                                         ResponsePayload::V1Ack(v1::responses::Response::error(
                                             "Failed to ack message",
@@ -182,19 +186,15 @@ impl ProcessingThread {
                                     subscription_id,
                                     consumer_id,
                                 ) {
-                                    Ok(success) => ResponsePayload::V1Nack(
-                                        if success {
-                                            v1::responses::Response::success(
-                                                v1::responses::NackResult {
-                                                    success: true,
-                                                },
-                                            )
-                                        } else {
-                                            v1::responses::Response::warning(
-                                                "Message was already acknowledged",
-                                            )
-                                        },
-                                    ),
+                                    Ok(success) => ResponsePayload::V1Nack(if success {
+                                        v1::responses::Response::success(
+                                            v1::responses::NackResult { success: true },
+                                        )
+                                    } else {
+                                        v1::responses::Response::warning(
+                                            "Message was already acknowledged",
+                                        )
+                                    }),
                                     Err(_) => {
                                         ResponsePayload::V1Nack(v1::responses::Response::error(
                                             "Failed to nack message",
@@ -204,7 +204,8 @@ impl ProcessingThread {
                                 }
                             }
                         };
-                        let serialization_response = Response::new(request_id, response_payload);
+                        let serialization_response =
+                            BrokerResponse::new(request_id, response_payload);
                         let response_message = ServerMessage {
                             body: self
                                 .serializer

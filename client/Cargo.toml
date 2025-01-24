@@ -8,12 +8,7 @@ edition.workspace = true
 serde.workspace = true
 rmp-serde.workspace = true
 bytes.workspace = true
-rand.workspace = true
 log.workspace = true
-colog.workspace = true
 uuid.workspace = true
 
-hyper = { version = "1", features = ["http1", "client"] }
-http-body-util = "0.1"
-hyper-util = { version = "0.1", features = ["full"] }
 pulsar_rust_net = { path = "../net" }

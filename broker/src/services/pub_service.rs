@@ -48,6 +48,14 @@ impl PubService {
     }
 
     pub fn publish_message(self: &Self, mut message: PublishedMessage) -> PubResult {
+        // Short circuit publising to troubleshoot network performance
+        // return Ok(MessageRef {
+        //     topic_id: message.message_ref.topic_id,
+        //     partition_id: message.message_ref.partition_id,
+        //     ledger_id: 1,
+        //     message_id: 1,
+        // });
+
         // Find the topic
         let topic = match self.cluster.topics().get(&message.message_ref.topic_id) {
             Some(topic) => topic,

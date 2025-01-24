@@ -24,7 +24,6 @@ use std::{
 };
 use tokio::task;
 
-#[cfg(debug_assertions)]
 use pulsar_rust_broker::model::cluster::{
     DEFAULT_ADMIN_PORT, DEFAULT_PUBSUB_PORT, DEFAULT_SYNC_PORT,
 };
@@ -166,6 +165,22 @@ async fn main() {
                 partition_2_3.partition_id,
                 node.node_id,
             )
+            .unwrap();
+    }
+
+    // Temporary code for performance testing only. This code should be removed once the
+    // broker stores its configuration persistently
+    #[cfg(not(debug_assertions))]
+    {
+        let node = data_layer
+            .add_node(&ip_address,DEFAULT_ADMIN_PORT,DEFAULT_PUBSUB_PORT,DEFAULT_SYNC_PORT)
+            .unwrap();
+        let topic = data_layer.add_topic("topic").unwrap();
+        let partition = data_layer.add_partition(topic.topic_id, node.node_id)
+            .unwrap();
+        data_layer.add_subscription(topic.topic_id, "perftest", false)
+            .unwrap();
+        data_layer.add_ledger(partition.topic_id,partition.partition_id,node.node_id)
             .unwrap();
     }
 

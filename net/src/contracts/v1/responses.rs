@@ -7,7 +7,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::data_types::{
-    ConsumerId, ContractVersionNumber, ErrorCode, LedgerId, MessageId, NodeId, PartitionId, PortNumber, SubscriptionId, Timestamp, TopicId
+    ConsumerId, ContractVersionNumber, ErrorCode, LedgerId, MessageId, NodeId, PartitionId,
+    PortNumber, SubscriptionId, Timestamp, TopicId,
 };
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -252,8 +253,7 @@ pub struct LogEntry {
     pub details: Option<LogEntryDetail>,
 }
 
-#[derive(Deserialize, Serialize, Clone)]
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum RequestOutcome {
     Success,
     NoData(String),

@@ -49,8 +49,8 @@ pub fn run_test() {
         concurrency
     );
     println!(
-        "Average throughput {} req/sec",
-        ((concurrency * repeat_count) as f32 / (elapsed.as_micros() as f32 / 1000000.0)).floor()
+        "Average throughput {} messages/sec",
+        thousands(&((concurrency * repeat_count) as f32 / (elapsed.as_micros() as f32 / 1000000.0)).floor().to_string())
     );
     println!(
         "Average latency {} µs",
@@ -138,4 +138,15 @@ fn extract_response(lines: &mut impl Iterator<Item = String>) -> Vec<String> {
             }
         }
     }
+}
+
+fn thousands(number: &str) -> String {
+    number
+        .as_bytes()
+        .rchunks(3)
+        .rev()
+        .map(std::str::from_utf8)
+        .collect::<Result<Vec<&str>, _>>()
+        .unwrap()
+        .join(",")
 }

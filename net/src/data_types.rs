@@ -6,7 +6,7 @@ pub type ContractVersionNumber = u16; // Up to 65 thousand versions of the API
 pub type Timestamp = u64; // Compatible with Rust time library
 pub type VersionNumber = u32; // Allows 4 billion updates to each database record
 pub type PortNumber = u16; // Conforms to TCP/IP port numbering
-pub type MessageCount = u16; // The number of messages to consume
+pub type MessageCount = u8; // The number of messages to consume
 pub type ErrorCode = u16; // Numeric value returned with error responses to identify the specific error
 
 pub type NodeId = u16; // Maximum of 65 thousand nodes in a cluster

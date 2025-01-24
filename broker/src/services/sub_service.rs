@@ -18,6 +18,10 @@ use crate::{
     persistence::{log_entries::LoggedEvent, logged_events, PersistenceLayer},
 };
 
+// Max wire size for bin serialization is 32 kbytes, and messages are
+// limited to 512 bytes each.
+const MAX_MESSAGE_COUNT: MessageCount = 50;
+
 pub enum SubError {
     Error(String),
     TopicNotFound,
@@ -110,7 +114,9 @@ impl SubService {
 
         let mut messages = Vec::new();
 
-        for _ in 0..max_messages {
+        let max_message_count = if max_messages > MAX_MESSAGE_COUNT { MAX_MESSAGE_COUNT } else { max_messages };
+
+        for _ in 0..max_message_count {
             match subscription.pop(consumer_id) {
                 Some(subscribed_message) => {
                     let message_ref = MessageRef::from_key(&subscribed_message.message_ref_key);

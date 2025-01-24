@@ -1,0 +1,13 @@
+[package]
+name = "pulsar_rust_perftest"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+log.workspace = true
+colog.workspace = true
+rand.workspace = true
+tokio.workspace = true
+
+pulsar_rust_client = { path = "../client" }

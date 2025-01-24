@@ -55,7 +55,7 @@ pub enum ResponsePayload {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct Response {
+pub struct BrokerResponse {
     pub request_id: RequestId,
     pub payload: ResponsePayload,
 }
@@ -77,7 +77,7 @@ const V1_CONSUMER_MESSAGE_TYPE_ID: MessageTypeId = 3;
 const V1_ACK_MESSAGE_TYPE_ID: MessageTypeId = 4;
 const V1_NACK_MESSAGE_TYPE_ID: MessageTypeId = 5;
 
-impl Response {
+impl BrokerResponse {
     pub fn new(request_id: RequestId, payload: ResponsePayload) -> Self {
         Self {
             request_id,
@@ -122,7 +122,7 @@ impl ContractSerializer {
         }
     }
 
-    pub fn serialize_response(self: &Self, response: &Response) -> SerializeResult {
+    pub fn serialize_response(self: &Self, response: &BrokerResponse) -> SerializeResult {
         match &response.payload {
             ResponsePayload::NegotiateVersion(negotiate_version) => self.serialize_entity(
                 negotiate_version,
@@ -195,33 +195,33 @@ impl ContractSerializer {
         }
     }
 
-    pub fn deserialize_response(self: &Self, buffer: Vec<u8>) -> DeserializeResult<Response> {
+    pub fn deserialize_response(self: &Self, buffer: Vec<u8>) -> DeserializeResult<BrokerResponse> {
         let (message_type, request_id) = self.extract_metadata(&buffer);
 
         match message_type {
             NEGOTIATE_VERSION_MESSAGE_TYPE_ID =>
                 match self.deserialize_entity::<v1::responses::Response<v1::responses::NegotiateVersionResult>>(buffer) {
-                    Ok(response) => Ok(Response{ request_id, payload: ResponsePayload::NegotiateVersion(response) }),
+                    Ok(response) => Ok(BrokerResponse{ request_id, payload: ResponsePayload::NegotiateVersion(response) }),
                     Err(err) => Err(err),
                 }
             V1_PUBLISH_MESSAGE_TYPE_ID =>
                 match self.deserialize_entity::<v1::responses::Response<v1::responses::PublishResult>>(buffer) {
-                    Ok(response) => Ok(Response{ request_id, payload: ResponsePayload::V1Publish(response) }),
+                    Ok(response) => Ok(BrokerResponse{ request_id, payload: ResponsePayload::V1Publish(response) }),
                     Err(err) => Err(err),
                 }
             V1_CONSUMER_MESSAGE_TYPE_ID =>
                 match self.deserialize_entity::<v1::responses::Response<v1::responses::ConsumeResult>>(buffer) {
-                    Ok(response) => Ok(Response{ request_id, payload: ResponsePayload::V1Consume(response) }),
+                    Ok(response) => Ok(BrokerResponse{ request_id, payload: ResponsePayload::V1Consume(response) }),
                     Err(err) => Err(err),
                 }
             V1_ACK_MESSAGE_TYPE_ID =>
                 match self.deserialize_entity::<v1::responses::Response<v1::responses::AckResult>>(buffer) {
-                    Ok(response) => Ok(Response{ request_id, payload: ResponsePayload::V1Ack(response) }),
+                    Ok(response) => Ok(BrokerResponse{ request_id, payload: ResponsePayload::V1Ack(response) }),
                     Err(err) => Err(err),
                 }
             V1_NACK_MESSAGE_TYPE_ID =>
                 match self.deserialize_entity::<v1::responses::Response<v1::responses::NackResult>>(buffer) {
-                    Ok(response) => Ok(Response{ request_id, payload: ResponsePayload::V1Nack(response) }),
+                    Ok(response) => Ok(BrokerResponse{ request_id, payload: ResponsePayload::V1Nack(response) }),
                     Err(err) => Err(err),
                 }
             _ => panic!("Unsupported message type {message_type} in response")
@@ -350,7 +350,7 @@ mod tests {
             outcome,
             data: Some(original_payload),
         };
-        let original_response = Response {
+        let original_response = BrokerResponse {
             request_id,
             payload: ResponsePayload::NegotiateVersion(original_payload_response),
         };

@@ -1,9 +1,56 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::mpsc::{RecvError, SendError},
+};
 
 use pulsar_rust_net::{
-    contracts::v1,
-    data_types::{ConsumerId, LedgerId, MessageId, PartitionId, Timestamp, TopicId},
+    bin_serialization::DeserializeError,
+    contracts::v1::{self, responses::RequestOutcome},
+    data_types::{ConsumerId, ErrorCode, LedgerId, MessageId, PartitionId, Timestamp, TopicId},
 };
+
+pub(crate) type ClientMessage = Vec<u8>;
+
+#[derive(Debug)]
+pub enum ClientError {
+    /// The client is not connected to a broker
+    NotConnected,
+
+    /// The connected broker does not support any API version supported by this client library
+    IncompatibleVersion,
+
+    /// The broker returned a message version that is not supported by this client
+    VersionNotSupported,
+
+    /// An error occurred sending the request to the broker
+    SendError(SendError<Vec<u8>>),
+
+    /// The broker retuened an unsuccesfull outcome for the request
+    BadOutcome(RequestOutcome),
+
+    /// The requested data does not exist on the broker
+    NoData,
+
+    /// The broker returned a response that was in response to another request. This mostly
+    /// happens if you mix sync and async calls on the same connection
+    IncorrectResponseType,
+
+    /// The request was sent to the wrong broker, it does not currently own this partition
+    IncorrectNode,
+
+    /// The response from the broker could not be deserialized
+    DeserializeError(DeserializeError),
+
+    /// There was an error receiving the response from the broker. Most likely the broker
+    /// was shutting down and closed the connection
+    RecvError(RecvError),
+
+    /// Some other error was reported by the broker. See the error code for the specific type
+    /// of error that occurred
+    Error(String, ErrorCode),
+}
+
+pub type ClientResult<T> = Result<T, ClientError>;
 
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct MessageRef {

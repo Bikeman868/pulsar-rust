@@ -19,7 +19,7 @@ const IDLE_SLEEP_LIMIT: Duration = Duration::from_millis(50);
 const IDLE_SLEEP_DURATION: Duration = Duration::from_millis(10);
 const DISCONNECT_IDLE_TIME: Duration = Duration::from_secs(60);
 const MESSAGE_LENGTH_SIZE: usize = size_of::<MessageLength>();
-const MAX_MESSAGE_SIZE: usize = 4096;
+const MAX_MESSAGE_SIZE: usize = 32 * 1024;
 const RECEIVE_BUFFER_SIZE: usize = MAX_MESSAGE_SIZE << 2;
 const MAX_TX_RETRY_COUNT: usize = 5;
 const TX_RETRY_INTERVAL: Duration = Duration::from_millis(10);
@@ -39,7 +39,10 @@ impl TcpChannel {
         info!("TcpChannel: Created");
 
         let thread = TcpThread::new(receiver, sender, stream, buffer_pool, stop_signal);
-        thread::spawn(move || thread.run());
+        thread::Builder::new()
+            .name(String::from("tcp-channel"))
+            .spawn(move || thread.run())
+            .unwrap();
 
         Self {
             stop_signal: stop_signal.clone(),

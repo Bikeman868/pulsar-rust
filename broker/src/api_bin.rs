@@ -21,5 +21,8 @@ pub fn serve(app: &Arc<App>, addr: SocketAddrV4) -> JoinHandle<()> {
     let buffer_pool = Arc::new(BufferPool::new());
     let server_thread = ProcessingThreadPool::new(&app.stop_signal, &buffer_pool, &app, addr);
     info!("Binary API listening on {addr}");
-    thread::spawn(move || server_thread.run())
+    thread::Builder::new()
+        .name(String::from("bin-api-thread-pool"))
+        .spawn(move || server_thread.run())
+        .unwrap()
 }

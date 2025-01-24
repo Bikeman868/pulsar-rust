@@ -45,7 +45,10 @@ impl Server {
 
         let thread =
             ListenerThread::new(tx_receiver, rx_sender, listener, &buffer_pool, &stop_signal);
-        thread::spawn(move || thread.run());
+        thread::Builder::new()
+            .name(String::from("bin-api-listener"))
+            .spawn(move || thread.run())
+            .unwrap();
 
         Self {
             stop_signal,

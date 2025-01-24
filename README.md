@@ -24,7 +24,7 @@ due to a re-configuration or version upgrade, then it will restore its internal 
 
 - This implementation deletes information from its internal state and from the transaction log when messages are
 successfully processed by all subscribers. This means that the storage backlog concept in Apache Pulsar is not 
-applicable. If an application fails to acknowledge one message, then that one message will remain in the
+applicable here. If an application fails to acknowledge one message, then that one message will remain in the
 transaction log, this won't cause other messages to be retained.
 
 - This implementation allows multiple messages with the same key to be buffered in the client application for
@@ -146,6 +146,74 @@ effectively when there are enough partitions.
 
 When nodes are added or removed from the cluster, this also causes partitions to be transferred between nodes.
 
+## Current State
+
+Development is currently in the first stage, where we are discovering how much performance advantage (if any)
+there is from re-writing Pulsar in Rust. Early indications suggest that this version of Pulsar is about 10x
+faster than Apache Pulsar, but this work is not finished yet.
+
+To evaluate the performance potential, these areas have been built in stage 1:
+* The data model for nodes, topics, partitions, ledgers, subscriptions and consumers.
+* Startup code that builds some topics, partitions and subscriptions for testing purposes.
+* The core functionallity and business logic for publishing, durably storing and delivering messages.
+* Business logic for shared and key-shared subscriptions.
+* Non-functional requirements like observability (which could impact performance).
+* Separate API data contracts with mappings to/from the internal model.
+* Versioned APIs and version negotiation between client and broker.
+* Http API with keep-alive and JSON representations for publishing and consuming messages.
+* Http API for querying the internal state so that we can verify the correct operation.
+* High performance API that streams binary serialized data bidirectionally over Tcp.
+* A wire binary representation of data contracts that is common to broker and client application.
+* A client-side library that can be used for blocking or non-blocking requests to the broker.
+* A performance testing CLI that uses the client to send a large number of requests and measures latency and throughput
+
+If the performance results look promising, the next stage will be to bring this up to MVP by adding the
+following features:
+* Http API for managing the configuration of nodes, topics, partitions and subscriptions.
+* Configurable persistence options. The persistence layer is abstracted by a facade, but we need implementations that provide options like MySql, SqLite, Postgres etc.
+* Rehydration of the broker's internal state on restart from the transaction log. The current code maintains the transaction log, but does not use it on startup.
+
+Beyond MVP, the next obvious area that needs to be developed is clustering. The internal data model was
+built to a design that supports clustering, but the following features would need to be added to make clustering work:
+* Client library connects to all nodes in the cluster for publishing and consuming messages.
+* APIs and protocols for broker-broker communication.
+* Allocation of partitions to nodes in the cluster and load balancing by moving partitions from time to time.
+* Starting a new ledger when partitions are moved between nodes, and not delivering messages from the new ledger until the existing one is drained.
+* Sync changes in nodes, topics, and subscriptions across nodes in the cluster.
+
+## Performance
+
+I have not undertaken a comprehensive benchmarking exercise, or done any apples for apples comparisons with
+Apache Pulsar, but I have been very mindful of performance, and I have keeping an eye on the throughput 
+capacity troughout the development, and this is what I currently observe:
+
+|   | Microsoft Surface 3 | M1 MacBook Pro |
+| --- | --- | --- |
+| CPU | Intel Core i5 | Apple M1 Pro |
+| OS | Windows 10 | macOS Sequoia |
+| CPU cores | 4 | 10 |
+| CPU clock |2.4GHz | 3.2GHz |
+| Memory | 8GB | 16GB |
+| JSON + Http API | 7,100 | 30,000 |
+| Bin + TCP API | 17,000 | 140,000 |
+
+Throughput rates in the above table are messages per second that were published by the client, processed by the
+broker, delivered to the consumer, and acknowledged back to the broker.
+
+These tests were run with the producer, consumer and broker all running on the same computer. This is more load
+on the CPU and memory that you would expect in a real-world deployment where these applications would typically
+run on different machines, but removes most of the networking overhead by using localhost.
+
+An interesting side note about network impact on throughout. When usig the JSON over Http 1.1 API, you can only have
+one in-flight request per connection. If for example your network has 100ms latency, then you can only make 10 
+requests per second per connection, because Http 1.1 waits for the response to a request to complete before a new
+request can be started.
+
+When designing the binary serialization API for this application, I made the request and response channels fully
+decoupled, so that you can send thousands of requests over a connection before receiving the first response. This
+massively increases the maximum throughput per connection on high latency connections, but it's not unlimited
+because TCP/IP also has limitations on how many IP packets can be pending ack.
+
 ## Project Structure
 
 This folder has the following sub-folders. Note sub-folders also contain README files with more detail:
@@ -175,35 +243,11 @@ connections. You can only use this if you import the crate into a Rust applicati
 This folder contins a Rust crate that is shared between the client and the broker. It defines the wire protocols
 and data transfer objects that the client uses to communicate with the broker.
 
-## Performance
+### perftest
 
-I have not undertaken a comprehensive benchmarking exercise, or done any apples for apples comparisons with
-Apache Pulsar, but I have been very mindful of performance, and I have keeping an eye on the throughput 
-capacity troughout the development, and this is what I observed:
+This is a CLI that generates traffic as if it were an application using the client library, then measures the
+throughput and latency of processing the messges.
 
-|   | Microsoft Surface 3 | M1 MacBook Pro |
-| --- | --- | --- |
-| CPU | Intel Core i5 | Apple M1 Pro |
-| OS | Windows 10 | macOS Sequoia |
-| CPU cores | 4 | 10 |
-| CPU clock |2.4GHz | 3.2GHz |
-| Memory | 8GB | 16GB |
-| JSON + Http API | 7,100 | 30,000 |
-| Bin + TCP API | 25,000 | 140,000 |
-
-Throughput rates in the above table are messages per second that were published by the client, processed by the
-broker, delivered to the consumer, and acknowledged back to the broker.
-
-These tests were run with the producer, consumer and broker all running on the same computer. This is more load
-on the CPU and memory that you would expect in a real-world deployment where these applications would typically
-run on different machines, but removes most of the networking overhead by using localhost.
-
-An interesting side note about network impact on throughout. When usig the JSON over Http 1.1 API, you can only have
-one in-flight request per connection. If for example your network has 100ms latency, then you can only make 10 
-requests per second per connection, because Http 1.1 waits for the response to a request to complete before a new
-request can be started.
-
-When designing the binary serialization API for this application, I made the request and response channels fully
-decoupled, so that you can send thousands of requests over a connection before receiving the first response. This
-massively increases the maximum throughput per connection on high latency connections, but it's not unlimited
-because TCP/IP also has limitations on how many IP packets can be pending ack.
+In the long term this can be used to tune production configurations. For example you might want to test various
+configuration options in the applications, and the infrastructure they run on to see which settings give the 
+best performance in your system.

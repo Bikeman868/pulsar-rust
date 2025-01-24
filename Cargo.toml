@@ -4,6 +4,7 @@ members = [
     "broker",
     "client",
     "net",
+    "perftest",
 ]
 
 resolver = "2"

@@ -39,7 +39,10 @@ impl ListenerThread {
         let connections = Arc::new(RwLock::new(HashMap::new()));
 
         let router = RouterThread::new(response_receiver, stop_signal, &connections);
-        thread::spawn(move || router.run());
+        thread::Builder::new()
+            .name(String::from("bin-api-router"))
+            .spawn(move || router.run())
+            .unwrap();
 
         Self {
             request_sender,

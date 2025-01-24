@@ -2,7 +2,8 @@ use super::with_app;
 use crate::{observability::Metrics, services::sub_service::SubError, App};
 use pulsar_rust_net::{
     contracts::v1::{requests, responses},
-    data_types::{ConsumerId, SubscriptionId, TopicId}, error_codes::ERROR_CODE_GENERAL_FAILURE,
+    data_types::{ConsumerId, SubscriptionId, TopicId},
+    error_codes::ERROR_CODE_GENERAL_FAILURE,
 };
 use std::sync::Arc;
 use warp::{body, get, path, post, reply, Filter, Rejection, Reply};
@@ -70,14 +71,19 @@ async fn consume(body: requests::Consume, app: Arc<App>) -> Result<impl Reply, R
         Err(err) => match err {
             SubError::Error(msg) => responses::Response::error(&msg, ERROR_CODE_GENERAL_FAILURE),
             SubError::TopicNotFound => responses::Response::warning("Topic not found"),
-            SubError::SubscriptionNotFound => responses::Response::warning("Subscription not found"),
+            SubError::SubscriptionNotFound => {
+                responses::Response::warning("Subscription not found")
+            }
             SubError::PartitionNotFound => responses::Response::warning("Partition not found"),
             SubError::LedgerNotFound => responses::Response::warning("Ledger not found"),
-            SubError::MessageNotFound => responses::Response::warning("Message not found in ledger"),
-            SubError::NoneAvailable => responses::Response::no_data("No messages available"),
-            SubError::FailedToAllocateConsumerId => {
-                responses::Response::error("Failed to allocate consumer id", ERROR_CODE_GENERAL_FAILURE)
+            SubError::MessageNotFound => {
+                responses::Response::warning("Message not found in ledger")
             }
+            SubError::NoneAvailable => responses::Response::no_data("No messages available"),
+            SubError::FailedToAllocateConsumerId => responses::Response::error(
+                "Failed to allocate consumer id",
+                ERROR_CODE_GENERAL_FAILURE,
+            ),
         },
     };
     Ok(reply::json(&response))
@@ -100,13 +106,15 @@ async fn ack_message(body: requests::Ack, app: Arc<App>) -> Result<impl Reply, R
                 }
             }
             Err(err) => match err {
-                SubError::Error(msg) => responses::Response::error(&msg, ERROR_CODE_GENERAL_FAILURE),
+                SubError::Error(msg) => {
+                    responses::Response::error(&msg, ERROR_CODE_GENERAL_FAILURE)
+                }
                 SubError::TopicNotFound => {
                     responses::Response::warning(&String::from("No topic found with this id"))
                 }
-                SubError::SubscriptionNotFound => {
-                    responses::Response::warning(&String::from("No subscription found with this id"))
-                }
+                SubError::SubscriptionNotFound => responses::Response::warning(&String::from(
+                    "No subscription found with this id",
+                )),
                 SubError::PartitionNotFound => {
                     responses::Response::warning(&String::from("No partition found with this id"))
                 }
@@ -119,9 +127,10 @@ async fn ack_message(body: requests::Ack, app: Arc<App>) -> Result<impl Reply, R
                 SubError::NoneAvailable => {
                     responses::Response::no_data(&String::from("No data was available"))
                 }
-                SubError::FailedToAllocateConsumerId => {
-                    responses::Response::error(&String::from("Failed to allocate consumer id"), ERROR_CODE_GENERAL_FAILURE)
-                }
+                SubError::FailedToAllocateConsumerId => responses::Response::error(
+                    &String::from("Failed to allocate consumer id"),
+                    ERROR_CODE_GENERAL_FAILURE,
+                ),
             },
         };
     Ok(reply::json(&response))
@@ -144,13 +153,15 @@ async fn nack_message(body: requests::Nack, app: Arc<App>) -> Result<impl Reply,
                 }
             }
             Err(err) => match err {
-                SubError::Error(msg) => responses::Response::error(&msg, ERROR_CODE_GENERAL_FAILURE),
+                SubError::Error(msg) => {
+                    responses::Response::error(&msg, ERROR_CODE_GENERAL_FAILURE)
+                }
                 SubError::TopicNotFound => {
                     responses::Response::warning(&String::from("No topic found with this id"))
                 }
-                SubError::SubscriptionNotFound => {
-                    responses::Response::warning(&String::from("No subscription found with this id"))
-                }
+                SubError::SubscriptionNotFound => responses::Response::warning(&String::from(
+                    "No subscription found with this id",
+                )),
                 SubError::PartitionNotFound => {
                     responses::Response::warning(&String::from("No partition found with this id"))
                 }
@@ -163,9 +174,10 @@ async fn nack_message(body: requests::Nack, app: Arc<App>) -> Result<impl Reply,
                 SubError::NoneAvailable => {
                     responses::Response::no_data(&String::from("No data was available"))
                 }
-                SubError::FailedToAllocateConsumerId => {
-                    responses::Response::error(&String::from("Failed to allocate consumer id"), ERROR_CODE_GENERAL_FAILURE)
-                }
+                SubError::FailedToAllocateConsumerId => responses::Response::error(
+                    &String::from("Failed to allocate consumer id"),
+                    ERROR_CODE_GENERAL_FAILURE,
+                ),
             },
         };
     Ok(reply::json(&response))

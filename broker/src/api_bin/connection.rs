@@ -44,7 +44,10 @@ impl Connection {
             &connections,
             connection_id,
         );
-        thread::spawn(move || thread.run());
+        thread::Builder::new()
+            .name(String::from("bin-api-connection"))
+            .spawn(move || thread.run())
+            .unwrap();
 
         Self {
             sender: response_sender,

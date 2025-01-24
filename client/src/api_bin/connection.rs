@@ -4,13 +4,14 @@ use std::{
     net::TcpStream,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc::{channel, Receiver, RecvError, SendError, Sender, TryRecvError},
+        mpsc::{channel, Receiver, RecvError, SendError, Sender},
         Arc,
     },
     time::Duration,
 };
 
-pub(crate) type ClientMessage = Vec<u8>;
+use super::contracts::ClientMessage;
+
 const MAX_MESSAGE_LENGTH: usize = 512;
 
 /// Opens a connection to a host endpoint and owns a thread that sends requests and
@@ -18,7 +19,7 @@ const MAX_MESSAGE_LENGTH: usize = 512;
 pub struct Connection {
     stop_signal: Arc<AtomicBool>,
     request_sender: Sender<ClientMessage>,
-    response_receiver: Receiver<ClientMessage>,
+    response_receiver: Option<Receiver<ClientMessage>>,
     tcp_channel: TcpChannel,
 }
 
@@ -48,7 +49,7 @@ impl Connection {
         Self {
             stop_signal,
             request_sender,
-            response_receiver,
+            response_receiver: Some(response_receiver),
             tcp_channel,
         }
     }
@@ -59,14 +60,19 @@ impl Connection {
         self.tcp_channel.stop();
     }
 
-    /// Non-blocking call that returns a response from the host if there is one
-    pub fn try_recv(self: &Self) -> Result<ClientMessage, TryRecvError> {
-        self.response_receiver.try_recv()
-    }
-
     /// Blocking call that waits until there is a response from the host
     pub fn recv(self: &Self) -> Result<ClientMessage, RecvError> {
-        self.response_receiver.recv()
+        if let Some(receiver) = &self.response_receiver {
+            receiver.recv()
+        } else {
+            Err(RecvError)
+        }
+    }
+
+    /// Allows you to take over the receiving half of the connection. After
+    /// calling this method, you can no longer use the recv function.
+    pub fn take_receiver(self: &mut Self) -> Option<Receiver<Vec<u8>>> {
+        self.response_receiver.take()
     }
 
     /// Non-blocking call that queues a message to send to the host
