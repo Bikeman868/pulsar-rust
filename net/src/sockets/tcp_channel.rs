@@ -73,7 +73,7 @@ struct TcpThread {
     channel_rx: Receiver<Vec<u8>>,
     channel_tx: Sender<Vec<u8>>,
 
-    receive_buffer: [u8; RECEIVE_BUFFER_SIZE],
+    receive_buffer: Box<[u8; RECEIVE_BUFFER_SIZE]>,
     receive_buffer_count: usize,
     consumed_count: usize,
 }
@@ -95,7 +95,7 @@ impl TcpThread {
             channel_rx: receiver,
             channel_tx: sender,
 
-            receive_buffer: [0u8; RECEIVE_BUFFER_SIZE],
+            receive_buffer: Box::new([0u8; RECEIVE_BUFFER_SIZE]),
             consumed_count: 0,
             receive_buffer_count: 0,
         }
